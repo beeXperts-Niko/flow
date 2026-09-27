@@ -1,0 +1,19 @@
+[project]
+name = "flow-engine"
+version = "1.0.0"
+description = "Diktat-Engine für Flow: Whisper lokal, Korrektur über OpenAI oder Qwen."
+requires-python = ">=3.12"
+dependencies = [
+  "mlx-vlm>=0.4.1",
+  "mlx-whisper>=0.4.2",
+]
+
+[project.scripts]
+flow-engine = "flow_engine.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["flow_engine"]

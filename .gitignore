@@ -1,0 +1,19 @@
+.build/
+dist/
+*.wav
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+
+# Secrets and local state. Never publish keys, signing material, or dictated text.
+.env
+.env.*
+*.p12
+*.pem
+*.key
+*.crt
+config.json
+history.json
+*.log
+signing/
