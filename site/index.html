@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flow – Diktat in der Menüleiste · von Sinthex</title>
+  <meta name="description" content="Flow ist eine Diktier-App für die Menüleiste auf dem Mac. Die Aufnahme bleibt auf dem Mac, Whisper läuft lokal. Eine Korrektur über OpenAI ist optional und nutzt den eigenen Schlüssel. Von Sinthex, MIT-Lizenz.">
+  <meta name="author" content="Sinthex">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0b10">
+  <meta property="og:title" content="Flow – Diktat in der Menüleiste">
+  <meta property="og:description" content="Fn halten, sprechen, loslassen. Whisper lokal auf Apple Silicon, Korrektur optional mit eigenem Schlüssel. Von Sinthex.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css?v=2">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
+
+  <header class="site-header">
+    <div class="wrap site-header-inner">
+      <a class="brand" href="./" aria-label="Flow, zur Startseite">
+        <img class="brand-mark" src="assets/flow-mark.svg" alt="" width="28" height="28">
+        <span class="brand-name">Flow</span>
+        <span class="brand-by">von Sinthex</span>
+      </a>
+      <nav class="site-nav" aria-label="Hauptnavigation">
+        <a href="#so-fuehlt-es-sich-an">Ablauf</a>
+        <a href="#funktionen">Funktionen</a>
+        <a href="#bilder">Bilder</a>
+        <a href="#privatsphaere">Privatsphäre</a>
+        <a href="#lizenz">Lizenz</a>
+      </nav>
+      <a class="button button-small button-ghost" href="https://github.com/beeXperts-Niko/flow">GitHub</a>
+    </div>
+  </header>
+
+  <main id="inhalt">
+
+    <!-- Versprechen -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap">
+        <div class="hero-copy">
+          <p class="eyebrow">Menüleisten-App für macOS · von Sinthex</p>
+          <h1 id="hero-title">Diktat in der <span class="gradient-text">Menüleiste.</span></h1>
+          <p class="hero-lead">
+            Die Aufnahme bleibt auf dem Mac. Eine Korrektur über OpenAI ist optional
+            und nutzt den eigenen Schlüssel, der nur im Schlüsselbund liegt.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="https://github.com/beeXperts-Niko/flow">Quelltext auf GitHub</a>
+            <a class="button button-ghost" href="#lizenz">MIT-Lizenz, kurz erklärt</a>
+          </div>
+          <ul class="hero-facts" aria-label="Eckdaten">
+            <li>macOS 14 oder neuer</li>
+            <li>Apple Silicon</li>
+            <li>Whisper lokal</li>
+            <li>Open Source, MIT</li>
+          </ul>
+        </div>
+
+        <div class="stage">
+          <div class="stage-glow" aria-hidden="true"></div>
+          <div class="stage-menubar" aria-hidden="true">
+            <span class="stage-menubar-dot"></span>
+            <span class="stage-menubar-dot"></span>
+            <span class="stage-menubar-spacer"></span>
+            <span class="stage-menubar-item stage-menubar-item-active">
+              <img src="assets/flow-mark.svg" alt="" width="16" height="16">
+            </span>
+            <span class="stage-menubar-clock">So 15:10</span>
+          </div>
+          <img class="stage-window" src="assets/start.png" width="2200" height="1520"
+               alt="Startfenster von Flow: große Karte „Halte fn und sprich“, darunter Zähler für diktierte Wörter und die letzten Diktate.">
+          <img class="stage-popover" src="assets/menueleiste.png" width="680" height="874"
+               alt="Menüleisten-Popover von Flow mit Knopf „Frei sprechen“, Schalter für die automatische Korrektur, Stil E-Mail und den letzten Diktaten.">
+        </div>
+      </div>
+    </section>
+
+    <!-- Wie es sich anfühlt -->
+    <section class="section feel" id="so-fuehlt-es-sich-an" aria-labelledby="feel-title">
+      <div class="wrap feel-grid">
+        <div class="feel-copy">
+          <p class="eyebrow">So fühlt es sich an</p>
+          <h2 id="feel-title">Taste halten, reden, loslassen.</h2>
+          <p class="section-lead">
+            Flow arbeitet in jedem Programm, in dem du tippen kannst. Kein Fenster wechseln,
+            kein Text kopieren. Der Cursor steht, du sprichst, der Satz steht da.
+          </p>
+
+          <ol class="steps">
+            <li class="step">
+              <span class="step-key"><kbd>fn</kbd></span>
+              <div>
+                <h3>Fn halten</h3>
+                <p>Unten am Bildschirm erscheint eine kleine Pille mit Pegel und Zeit. Flow hört zu.</p>
+              </div>
+            </li>
+            <li class="step">
+              <span class="step-key step-key-wave" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span>
+              </span>
+              <div>
+                <h3>Sprechen</h3>
+                <p>So, wie du redest. Mit Pausen, mit „äh“, mit Umwegen.</p>
+              </div>
+            </li>
+            <li class="step">
+              <span class="step-key step-key-text" aria-hidden="true">Aa</span>
+              <div>
+                <h3>Loslassen</h3>
+                <p>Der Text wird in das Feld eingesetzt, in dem der Cursor steht.</p>
+              </div>
+            </li>
+          </ol>
+
+          <dl class="shortcuts">
+            <div>
+              <dt><kbd>fn</kbd> <kbd>fn</kbd></dt>
+              <dd>Doppeltipp startet freies Sprechen. Die Hände bleiben frei.</dd>
+            </div>
+            <div>
+              <dt><kbd>esc</kbd></dt>
+              <dd>Bricht die Aufnahme ab.</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="feel-visual">
+          <div class="desk">
+            <figure class="desk-item">
+              <div class="pill-frame pill-frame-recording">
+                <img class="pill-img" src="assets/aufnahme-pille.png" width="1280" height="240" loading="lazy" decoding="async"
+                     alt="Aufnahme-Pille von Flow: roter Punkt, Wellenform, Zeit 0:07 und Stopp-Knopf.">
+              </div>
+              <figcaption>Die Pille während der Aufnahme</figcaption>
+            </figure>
+            <figure class="desk-item">
+              <div class="pill-frame pill-frame-widget">
+                <img class="pill-img" src="assets/widget.png" width="456" height="144" loading="lazy" decoding="async"
+                     alt="Schwebendes Widget von Flow mit Mikrofon-Knopf, fn-Hinweis, Wörterbuch und Einstellungen.">
+              </div>
+              <figcaption>Das schwebende Widget, wenn du lieber klickst</figcaption>
+            </figure>
+          </div>
+
+          <div class="transform" aria-label="Beispiel für eine Korrektur">
+            <p class="transform-label">Gesagt</p>
+            <p class="transform-raw">„äh kannst du mir morgen die zahlen schicken“</p>
+            <p class="transform-label">Eingesetzt</p>
+            <p class="transform-clean">Kannst du mir morgen die Zahlen schicken?</p>
+            <p class="transform-note">Beispiel mit eingeschalteter Korrektur, Stil „Automatisch“.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Funktionen -->
+    <section class="section features" id="funktionen" aria-labelledby="features-title">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">Funktionen</p>
+          <h2 id="features-title">Was Flow tut.</h2>
+          <p class="section-lead">
+            Erkennen passiert auf deinem Mac. Formulieren passiert nur, wenn du es willst.
+            Alles Weitere ist dazu da, dass der Text im richtigen Ton an der richtigen Stelle landet.
+          </p>
+        </header>
+
+        <div class="spec">
+          <article class="spec-row">
+            <div class="spec-title">
+              <span class="spec-index">01</span>
+              <h3>Whisper, lokal</h3>
+            </div>
+            <p class="spec-body">
+              Die Spracherkennung läuft mit Whisper auf dem Mac, über MLX auf Apple Silicon.
+              Die Aufnahme geht dafür nicht ins Netz. Das Modell liegt im Flow-Ordner.
+            </p>
+            <p class="spec-detail"><code>mlx-community/<wbr>whisper-large-v3-turbo</code></p>
+          </article>
+
+          <article class="spec-row">
+            <div class="spec-title">
+              <span class="spec-index">02</span>
+              <h3>Korrektur, wenn du willst</h3>
+            </div>
+            <p class="spec-body">
+              Füllwörter raus, Zeichensetzung rein, passender Ton. Dafür geht der erkannte Text
+              an OpenAI, mit deinem eigenen Schlüssel. Flow empfiehlt das neueste schnelle Modell,
+              das dein Schlüssel nutzen darf. Du kannst auch ein Modell fest einstellen.
+              Ohne Schlüssel bleibt es beim Text von Whisper.
+            </p>
+            <p class="spec-detail"><span class="chip">Empfohlen: neuestes schnelles Modell</span></p>
+          </article>
+
+          <article class="spec-row">
+            <div class="spec-title">
+              <span class="spec-index">03</span>
+              <h3>Wörterbuch</h3>
+            </div>
+            <p class="spec-body">
+              Namen, Marken und Fachbegriffe, die immer richtig geschrieben werden sollen.
+              Hört Whisper ein Wort regelmäßig falsch, trägst du auch das ein, und Flow ersetzt es exakt.
+            </p>
+            <p class="spec-detail"><span class="chip chip-soft">„flow app“</span> <span class="arrow" aria-label="wird zu">→</span> <span class="chip">Flow</span></p>
+          </article>
+
+          <article class="spec-row">
+            <div class="spec-title">
+              <span class="spec-index">04</span>
+              <h3>Einsetzen und umformulieren</h3>
+            </div>
+            <p class="spec-body">
+              Der Text landet im aktiven Feld, egal in welchem Programm. Ist dort schon Text markiert,
+              wird das Gesprochene zur Anweisung: Markieren, Fn halten, sagen, was sich ändern soll.
+            </p>
+            <p class="spec-detail"><span class="chip chip-soft">„mach das kürzer“</span></p>
+          </article>
+
+          <article class="spec-row">
+            <div class="spec-title">
+              <span class="spec-index">05</span>
+              <h3>Verlauf</h3>
+            </div>
+            <p class="spec-body">
+              Die letzten Diktate stehen im Menüleisten-Popover, ein Klick kopiert sie.
+              Im Verlauf siehst du zu jedem Eintrag auch den Rohtext. Der Verlauf liegt lokal auf dem Mac.
+            </p>
+            <p class="spec-detail"><span class="chip chip-soft">Klicken zum Kopieren</span></p>
+          </article>
+        </div>
+
+        <div class="spotlight">
+          <div class="spotlight-copy">
+            <span class="spec-index">06</span>
+            <h3>Stil nach dem Programm vorne</h3>
+            <p>
+              Eine Mail klingt anders als eine Chatnachricht, und ein Funktionsname soll nicht
+              in einen Satz verwandelt werden. Flow erkennt das Programm im Vordergrund und wählt den Stil.
+              Die Zuordnung lässt sich für jede App ändern.
+            </p>
+            <ul class="style-map" aria-label="Beispiele für die Zuordnung">
+              <li><span>Mail</span><span>E-Mail</span></li>
+              <li><span>Nachrichten</span><span>Nachricht</span></li>
+              <li><span>Notizen</span><span>Notizen</span></li>
+              <li><span>Terminal, Editor</span><span>Coding</span></li>
+              <li><span>nicht erkannt</span><span>dein Standardstil</span></li>
+            </ul>
+            <p class="spotlight-note">Dazu gibt es „Wörtlich“: nur Füllwörter und Zeichensetzung, deine Formulierung bleibt.</p>
+          </div>
+          <a class="spotlight-shot" href="assets/stil-pro-programm.png" data-lightbox
+             data-caption="Stil: sechs Standardstile und darunter die Liste pro Programm.">
+            <img src="assets/stil-pro-programm.png" width="2200" height="2160" loading="lazy" decoding="async"
+                 alt="Stil-Seite von Flow mit sechs Karten (Automatisch, Wörtlich, E-Mail, Nachricht, Notizen, Coding) und der Liste pro Programm, etwa Mail auf E-Mail und Terminal auf Coding.">
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bilder -->
+    <section class="section gallery-section" id="bilder" aria-labelledby="gallery-title">
+      <div class="wrap">
+        <header class="section-head section-head-split">
+          <div>
+            <p class="eyebrow">Bilder</p>
+            <h2 id="gallery-title">Ein Rundgang durch die App.</h2>
+          </div>
+          <p class="gallery-note">
+            Alle Bilder zeigen Beispielinhalte, keine echten Diktate.
+          </p>
+        </header>
+
+        <div class="gallery">
+          <div class="gallery-row gallery-row-a">
+            <figure class="shot">
+              <a class="shot-link" href="assets/stil.png" data-lightbox data-caption="Stil: jede Karte zeigt, was aus dem Gesagten wird.">
+                <img src="assets/stil.png" width="2200" height="1520" loading="lazy" decoding="async"
+                     alt="Stil-Karten mit Vorher-nachher-Beispielen, etwa „bin in fünf minuten da“ als Nachricht und „getUserById(id)“ als Coding.">
+              </a>
+              <figcaption><strong>Stil</strong> Jede Karte zeigt, was aus dem Gesagten wird.</figcaption>
+            </figure>
+            <figure class="shot">
+              <a class="shot-link" href="assets/menueleiste.png" data-lightbox data-caption="Menüleiste: frei sprechen, Korrektur, Stil und die letzten Diktate.">
+                <img src="assets/menueleiste.png" width="680" height="874" loading="lazy" decoding="async"
+                     alt="Menüleisten-Popover mit Knopf „Frei sprechen“, Stil E-Mail und den letzten drei Diktaten.">
+              </a>
+              <figcaption><strong>Menüleiste</strong> Alles Wichtige, ein Klick entfernt.</figcaption>
+            </figure>
+          </div>
+
+          <div class="gallery-row gallery-row-b">
+            <figure class="shot">
+              <a class="shot-link" href="assets/willkommen.png" data-lightbox data-caption="Willkommen: der erste Start erklärt, was lokal bleibt.">
+                <img src="assets/willkommen.png" width="1280" height="1120" loading="lazy" decoding="async"
+                     alt="Willkommensbildschirm „Willkommen bei Flow“ mit drei Punkten: schneller als Tippen, formuliert automatisch, Aufnahme bleibt hier.">
+              </a>
+              <figcaption><strong>Erster Start</strong> Erklärt, was lokal bleibt.</figcaption>
+            </figure>
+            <figure class="shot">
+              <a class="shot-link" href="assets/woerterbuch.png" data-lightbox data-caption="Wörterbuch: Schreibweise und optional, wie Whisper das Wort hört.">
+                <img src="assets/woerterbuch.png" width="2200" height="1520" loading="lazy" decoding="async"
+                     alt="Wörterbuch mit zwei Einträgen: „flow app“ wird zu Flow, „sinthex“ wird zu Sinthex.">
+              </a>
+              <figcaption><strong>Wörterbuch</strong> Schreibweise und, wenn nötig, die falsch gehörte Form.</figcaption>
+            </figure>
+            <figure class="shot">
+              <a class="shot-link" href="assets/verlauf.png" data-lightbox data-caption="Verlauf: mit Programm, Uhrzeit und Wortzahl. Ein Klick zeigt den Rohtext.">
+                <img src="assets/verlauf.png" width="2200" height="1520" loading="lazy" decoding="async"
+                     alt="Verlauf mit drei Beispielsätzen aus Mail, Cursor und Nachrichten, jeweils mit Uhrzeit und Wortzahl.">
+              </a>
+              <figcaption><strong>Verlauf</strong> Mit Programm, Uhrzeit und Rohtext.</figcaption>
+            </figure>
+          </div>
+
+          <div class="gallery-row gallery-row-c">
+            <figure class="shot shot-crop">
+              <div class="crop-frame">
+                <img class="crop-settings" src="assets/einstellungen.png" width="2200" height="2560" loading="lazy" decoding="async"
+                     alt="Einstellungen, Bereich Modell: Whisper-Modell mlx-community/whisper-large-v3-turbo, API-Schlüssel als Platzhalter sk-…, Korrektur-Modell „Empfohlen: gpt-6-luna“.">
+              </div>
+              <figcaption><strong>Einstellungen, Modell</strong> Ausschnitt aus den Einstellungen.</figcaption>
+            </figure>
+            <div class="crop-explainer">
+              <h3>Der Modell-Bereich</h3>
+              <p>
+                Oben das lokale Whisper-Modell. Darunter der API-Schlüssel, hier nur als Platzhalter:
+                Er wird eingefügt und liegt danach im Schlüsselbund.
+              </p>
+              <p>
+                Das Korrektur-Modell ermittelt Flow über deinen Schlüssel und empfiehlt die neueste schnelle Stufe,
+                in diesem Beispiel <code>gpt-6-luna</code>. Wer ein bestimmtes Modell will, legt es hier fest.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Privatsphäre -->
+    <section class="section privacy" id="privatsphaere" aria-labelledby="privacy-title">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">Privatsphäre</p>
+          <h2 id="privacy-title">Deine Stimme bleibt auf deinem Mac.</h2>
+          <p class="section-lead">
+            Der Weg eines Diktats, ohne Kleingedrucktes.
+          </p>
+        </header>
+
+        <div class="flowmap">
+          <div class="flowmap-mac">
+            <p class="flowmap-label">Dein Mac</p>
+            <ol class="flowmap-nodes">
+              <li class="node"><span class="node-step">1</span><strong>Mikrofon</strong><span>Aufnahme, solange du sprichst</span></li>
+              <li class="node node-accent"><span class="node-step">2</span><strong>Whisper, lokal</strong><span>macht aus Audio Text</span></li>
+              <li class="node"><span class="node-step">3</span><strong>Aktives Feld</strong><span>der Text wird eingesetzt</span></li>
+            </ol>
+          </div>
+          <div class="flowmap-cloud">
+            <p class="flowmap-label flowmap-label-optional">Optional, zwischen 2 und 3</p>
+            <div class="node node-cloud">
+              <span class="node-step">+</span>
+              <strong>Korrektur über OpenAI</strong>
+              <span>nur der erkannte Text, nur mit deinem Schlüssel</span>
+            </div>
+          </div>
+        </div>
+
+        <ul class="privacy-points">
+          <li>
+            <h3>Die Aufnahme verlässt den Mac nicht.</h3>
+            <p>Whisper läuft lokal. Für die Erkennung wird kein Audio hochgeladen.</p>
+          </li>
+          <li>
+            <h3>Korrektur nur mit deinem Schlüssel.</h3>
+            <p>Ist sie eingeschaltet und ein Schlüssel hinterlegt, geht der erkannte Text an OpenAI. Dafür gelten die Bedingungen deines OpenAI-Kontos. Ohne Schlüssel bleibt es bei Whisper.</p>
+          </li>
+          <li>
+            <h3>Der Schlüssel liegt im Schlüsselbund.</h3>
+            <p>Nicht in einer Konfigurationsdatei, nicht im Quelltext, nicht im Repository.</p>
+          </li>
+          <li>
+            <h3>Verlauf und Einstellungen bleiben lokal.</h3>
+            <p>Sie liegen im Flow-Ordner auf deinem Mac. Diese Seite lädt übrigens keine Tracker, keine fremden Schriften und keine fremden Skripte.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Voraussetzungen -->
+    <section class="section start" id="loslegen" aria-labelledby="start-title">
+      <div class="wrap start-grid">
+        <div>
+          <p class="eyebrow">Loslegen</p>
+          <h2 id="start-title">Was du brauchst.</h2>
+          <ul class="requirements">
+            <li><strong>macOS 14</strong> oder neuer</li>
+            <li>Ein Mac mit <strong>Apple Silicon</strong></li>
+            <li>Optional ein <strong>OpenAI-API-Schlüssel</strong> für die Korrektur</li>
+          </ul>
+        </div>
+        <div class="build">
+          <h3>Aus dem Quelltext bauen</h3>
+          <p>
+            Zusätzlich nötig: Xcode-Kommandozeilenwerkzeuge, uv und Python 3.12.
+            Das Skript richtet die Umgebung ein, lädt die Whisper-Gewichte und baut <code>Flow.app</code>.
+          </p>
+          <pre class="code"><code>git clone https://github.com/beeXperts-Niko/flow.git
+cd flow
+./scripts/install.sh</code></pre>
+          <a class="button button-primary" href="https://github.com/beeXperts-Niko/flow">Zum Repository</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Lizenz -->
+    <section class="section license" id="lizenz" aria-labelledby="license-title">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">Lizenz</p>
+          <h2 id="license-title">Flow steht unter der MIT&#8209;Lizenz.</h2>
+          <p class="license-copyright">Copyright (c) 2026 Sinthex</p>
+        </header>
+
+        <div class="license-plain">
+          <div class="license-item">
+            <span class="license-icon license-icon-yes" aria-hidden="true">✓</span>
+            <h3>Du darfst</h3>
+            <p>Flow nutzen, verändern und weitergeben. Auch in eigenen Produkten, auch kommerziell.</p>
+          </div>
+          <div class="license-item">
+            <span class="license-icon license-icon-keep" aria-hidden="true">©</span>
+            <h3>Bedingung</h3>
+            <p>Der Copyright-Hinweis „Copyright (c) 2026 Sinthex“ und der Lizenztext bleiben in jeder Kopie erhalten.</p>
+          </div>
+          <div class="license-item">
+            <span class="license-icon license-icon-no" aria-hidden="true">–</span>
+            <h3>Keine Gewährleistung</h3>
+            <p>Flow kommt so, wie es ist. Sinthex haftet nicht für Schäden oder Fehler.</p>
+          </div>
+        </div>
+        <p class="license-link">
+          Verbindlich ist der englische Originaltext:
+          <a href="https://github.com/beeXperts-Niko/flow/blob/main/LICENSE">LICENSE im Repository lesen</a>
+        </p>
+
+        <div class="credits">
+          <h3>Worauf Flow aufbaut</h3>
+          <p class="credits-lead">
+            Flow nutzt diese Open-Source-Projekte. Ihre Lizenzen gelten zusätzlich und sind im Repository
+            in der Datei THIRD_PARTY_NOTICES.md abgedruckt.
+          </p>
+          <table class="credits-table">
+            <thead>
+              <tr>
+                <th scope="col">Projekt</th>
+                <th scope="col">Wofür</th>
+                <th scope="col">Lizenz</th>
+                <th scope="col">Copyright</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row"><a href="https://github.com/ml-explore/mlx-examples">mlx-whisper</a></th>
+                <td data-label="Wofür">Spracherkennung auf Apple Silicon</td>
+                <td data-label="Lizenz">MIT</td>
+                <td data-label="Copyright">© 2024 Apple Inc.</td>
+              </tr>
+              <tr>
+                <th scope="row"><a href="https://github.com/ml-explore/mlx">MLX</a></th>
+                <td data-label="Wofür">Rechenbibliothek für Apple Silicon</td>
+                <td data-label="Lizenz">MIT</td>
+                <td data-label="Copyright">© 2023 Apple Inc.</td>
+              </tr>
+              <tr>
+                <th scope="row"><a href="https://github.com/Blaizzy/mlx-vlm">mlx-vlm</a></th>
+                <td data-label="Wofür">Optionale lokale Korrektur</td>
+                <td data-label="Lizenz">MIT</td>
+                <td data-label="Copyright">© 2025 Prince Canuma</td>
+              </tr>
+              <tr>
+                <th scope="row">
+                  Whisper large-v3-turbo
+                  <span class="credits-links">
+                    <a href="https://github.com/openai/whisper">Code</a>
+                    <a href="https://huggingface.co/openai/whisper-large-v3-turbo">Modell</a>
+                  </span>
+                </th>
+                <td data-label="Wofür">Modellgewichte für die Erkennung</td>
+                <td data-label="Lizenz">MIT</td>
+                <td data-label="Copyright">Copyright (c) 2022 OpenAI</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Autor -->
+    <section class="section author" aria-labelledby="author-title">
+      <div class="wrap author-inner">
+        <img class="author-mark" src="assets/flow-mark.svg" alt="" width="72" height="72" loading="lazy">
+        <div>
+          <p class="eyebrow">Autor</p>
+          <h2 id="author-title">Flow ist ein Projekt von Sinthex.</h2>
+          <p>
+            Entwickelt, gepflegt und als Open Source veröffentlicht von Sinthex.
+            Fehler, Fragen und Vorschläge sind im Repository auf GitHub gut aufgehoben.
+          </p>
+          <a class="button button-ghost" href="https://github.com/beeXperts-Niko/flow">github.com/beeXperts-Niko/flow</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <div class="footer-brand">
+        <img src="assets/flow-mark.svg" alt="" width="24" height="24">
+        <span><strong>Flow</strong> von Sinthex</span>
+      </div>
+      <nav class="footer-links" aria-label="Fußzeile">
+        <a href="https://github.com/beeXperts-Niko/flow">Quelltext</a>
+        <a href="https://github.com/beeXperts-Niko/flow/blob/main/LICENSE">Lizenz (MIT)</a>
+        <a href="#lizenz">Basis-Projekte</a>
+      </nav>
+      <div class="footer-legal">
+        <p>© 2026 Sinthex. Flow steht unter der MIT-Lizenz, Copyright (c) 2026 Sinthex.</p>
+        <p>Alle Bilder zeigen Beispielinhalte, keine echten Diktate.</p>
+        <p>Flow ist kein Produkt von Apple oder OpenAI. macOS, Apple Silicon, OpenAI und Whisper sind Marken ihrer jeweiligen Inhaber.</p>
+      </div>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" id="lightbox" aria-label="Bildansicht">
+    <button class="lightbox-close" type="button" aria-label="Schließen">×</button>
+    <img class="lightbox-image" alt="">
+    <p class="lightbox-caption"></p>
+  </dialog>
+</body>
+</html>

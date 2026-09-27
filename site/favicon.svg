@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Flow">
+  <defs>
+    <linearGradient id="flow-mark-gradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f45e6"/>
+      <stop offset="0.55" stop-color="#8c5cf5"/>
+      <stop offset="1" stop-color="#ed4799"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#flow-mark-gradient)"/>
+  <g fill="#ffffff">
+    <rect x="13.3" y="26" width="3.4" height="12" rx="1.7"/>
+    <rect x="19.8" y="21" width="3.4" height="22" rx="1.7"/>
+    <rect x="26.3" y="15" width="3.4" height="34" rx="1.7"/>
+    <rect x="32.8" y="11" width="3.4" height="42" rx="1.7"/>
+    <rect x="39.3" y="18" width="3.4" height="28" rx="1.7"/>
+    <rect x="45.8" y="23" width="3.4" height="18" rx="1.7"/>
+    <rect x="52.3" y="28" width="3.4" height="8" rx="1.7"/>
+  </g>
+</svg>
