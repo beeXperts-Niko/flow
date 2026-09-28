@@ -89,6 +89,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else if !state.hasPermissions {
             showMain(.home)
         }
+
+        if !SnapshotMode.isActive {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+                self?.state.checkForUpdate()
+            }
+        }
     }
 
     /// Menüleisten-Apps haben sonst kein Menü „Bearbeiten“. Ohne den Eintrag
@@ -162,6 +168,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] phase in self?.updateIcon(phase) }
+            .store(in: &cancellables)
+        Publishers.CombineLatest(state.$update, state.$dismissedUpdate)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _, _ in
+                guard let self else { return }
+                self.updateIcon(self.state.phase)
+            }
             .store(in: &cancellables)
     }
 
@@ -793,20 +806,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func updateIcon(_ phase: Phase) {
         guard let button = statusItem?.button else { return }
-        let name: String
-        var tint: NSColor?
+        let listening = phase == .listening
+        let symbol: String
         switch phase {
-        case .listening:
-            name = "waveform"
-            tint = .systemOrange
         case .transcribing, .polishing, .translating:
-            name = "ellipsis.circle"
+            symbol = "ellipsis.circle"
         default:
-            name = "waveform"
+            symbol = "waveform"
         }
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: "Flow")
-        image?.isTemplate = tint == nil
-        button.image = image
-        button.contentTintColor = tint
+        let badge = state.showsUpdateOffer && symbol == "waveform"
+        button.image = menuImage(symbol: symbol, badge: badge, tint: listening ? .systemOrange : nil)
+        button.contentTintColor = nil
+        button.setAccessibilityLabel(menuIconLabel(listening: listening, badge: badge))
+        statusItem.length = badge ? 32 : NSStatusItem.squareLength
+    }
+
+    private func menuIconLabel(listening: Bool, badge: Bool) -> String {
+        switch (listening, badge) {
+        case (true, true): return L10n.s("status.icon.both")
+        case (true, false): return L10n.s("status.icon.recording")
+        case (false, true): return L10n.s("status.icon.update")
+        case (false, false): return L10n.s("status.icon")
+        }
+    }
+
+    /// Menu-bar glyph. Idle stays a template so it follows light and dark. Recording is painted orange.
+    private func menuImage(symbol: String, badge: Bool, tint: NSColor?) -> NSImage {
+        let width: CGFloat = badge ? 24 : 18
+        let height: CGFloat = 18
+        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
+            let config = NSImage.SymbolConfiguration(pointSize: badge ? 12 : 14, weight: .semibold)
+            if let base = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(config) {
+                let side: CGFloat = badge ? 14 : 16
+                let y = (rect.height - side) / 2
+                base.draw(in: NSRect(x: 0, y: y, width: side, height: side))
+            }
+            if badge,
+               let arrow = NSImage(systemSymbolName: "arrow.up", accessibilityDescription: nil)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 8, weight: .bold)) {
+                arrow.draw(in: NSRect(x: rect.width - 9, y: rect.height - 9, width: 8, height: 8))
+            }
+            return true
+        }
+        guard let tint else {
+            image.isTemplate = true
+            return image
+        }
+        let colored = NSImage(size: image.size, flipped: false) { rect in
+            image.draw(in: rect)
+            tint.set()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+        colored.isTemplate = false
+        return colored
     }
 }

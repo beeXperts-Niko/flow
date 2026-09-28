@@ -197,6 +197,33 @@ struct SettingsView: View {
                 }
             }
 
+            SettingsSection(title: L10n.s("update.settings.section"), icon: "arrow.down.app") {
+                SettingRow(title: L10n.s("update.settings.title"), detail: updateDetail) {
+                    HStack(spacing: 8) {
+                        if state.update == .checking || state.isDownloadingUpdate {
+                            ProgressView().controlSize(.small)
+                        }
+                        if state.availableRelease != nil {
+                            Button(L10n.s("update.settings.install"), action: state.installAvailableUpdate)
+                                .buttonStyle(PrimaryButtonStyle())
+                                .disabled(state.isDownloadingUpdate)
+                        }
+                        Button(L10n.s("update.settings.check")) {
+                            state.checkForUpdate(userInitiated: true)
+                        }
+                        .buttonStyle(SoftButtonStyle())
+                        .disabled(state.update == .checking || state.isDownloadingUpdate)
+                    }
+                }
+                if state.update == .failed {
+                    Divider()
+                    SettingRow(title: L10n.s("update.settings.open"), detail: L10n.s("update.settings.failed")) {
+                        Button(L10n.s("update.settings.open"), action: state.openUpdatePage)
+                            .buttonStyle(SoftButtonStyle())
+                    }
+                }
+            }
+
             SettingsSection(title: L10n.s("settings.data.section"), icon: "folder") {
                 SettingRow(title: L10n.s("settings.storage.title"), detail: L10n.s("settings.storage.detail")) {
                     HStack(spacing: 8) {
@@ -247,6 +274,23 @@ struct SettingsView: View {
         }
         .onChange(of: state.config.openAIModel) { _, _ in
             syncModelName()
+        }
+    }
+
+    private var updateDetail: String {
+        switch state.update {
+        case .checking:
+            return L10n.s("update.settings.checking")
+        case .current:
+            return L10n.s("update.settings.currentOk")
+        case .available(let release):
+            return L10n.s("update.settings.available", release.version)
+        case .downloading:
+            return L10n.s("update.settings.downloading")
+        case .failed:
+            return L10n.s("update.settings.failed")
+        case .idle:
+            return L10n.s("update.settings.current", L10n.appVersion)
         }
     }
 

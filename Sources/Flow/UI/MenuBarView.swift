@@ -19,6 +19,12 @@ struct MenuBarView: View {
                     .padding(.top, 10)
             }
 
+            if state.showsUpdateOffer {
+                updateHint
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+            }
+
             VStack(spacing: 10) {
                 HStack(spacing: 8) {
                     Text(L10n.s("menu.correction"))
@@ -174,6 +180,28 @@ struct MenuBarView: View {
         .opacity(state.engineReady || listening ? 1 : 0.6)
     }
 
+    private var updateHint: some View {
+        Button {
+            state.installAvailableUpdate()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.app.fill").foregroundStyle(Theme.violet)
+                Text(L10n.s("update.menu", state.availableRelease?.version ?? ""))
+                    .font(.system(size: 12, weight: .medium))
+                Spacer()
+                if state.isDownloadingUpdate {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.violet.opacity(0.12)))
+        }
+        .buttonStyle(.plain)
+        .disabled(state.isDownloadingUpdate)
+    }
+
     private var permissionHint: some View {
         Button {
             state.openMain(.home)
@@ -220,29 +248,35 @@ struct MenuBarView: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 4) {
-            Button {
-                state.openMain(.home)
-            } label: {
-                Label(L10n.s("menu.open"), systemImage: "macwindow")
-                    .font(.system(size: 12, weight: .medium))
+        VStack(spacing: 7) {
+            HStack(spacing: 4) {
+                Button {
+                    state.openMain(.home)
+                } label: {
+                    Label(L10n.s("menu.open"), systemImage: "macwindow")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(SoftButtonStyle())
+                Spacer()
+                Button {
+                    state.openMain(.settings)
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(IconButtonStyle())
+                .help(L10n.s("menu.settings"))
+                Button {
+                    NSApp.terminate(nil)
+                } label: {
+                    Image(systemName: "power")
+                }
+                .buttonStyle(IconButtonStyle())
+                .help(L10n.s("menu.quit"))
             }
-            .buttonStyle(SoftButtonStyle())
-            Spacer()
-            Button {
-                state.openMain(.settings)
-            } label: {
-                Image(systemName: "gearshape")
-            }
-            .buttonStyle(IconButtonStyle())
-            .help(L10n.s("menu.settings"))
-            Button {
-                NSApp.terminate(nil)
-            } label: {
-                Image(systemName: "power")
-            }
-            .buttonStyle(IconButtonStyle())
-            .help(L10n.s("menu.quit"))
+            Text(L10n.appVersion)
+                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity)
         }
     }
 }

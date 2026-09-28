@@ -8,6 +8,9 @@ struct HomeView: View {
             if !state.hasPermissions {
                 PermissionBanner()
             }
+            if state.showsUpdateOffer {
+                UpdateBanner()
+            }
             if state.micGranted && !state.axGranted {
                 AccessibilityRepairCard()
             }

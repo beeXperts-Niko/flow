@@ -154,6 +154,42 @@ private struct EngineCard: View {
     }
 }
 
+struct UpdateBanner: View {
+    @EnvironmentObject var state: AppState
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "arrow.down.app.fill")
+                .font(.system(size: 18))
+                .foregroundStyle(Theme.violet)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L10n.s("update.banner.title", state.availableRelease?.version ?? ""))
+                    .font(.system(size: 14, weight: .semibold))
+                Text(L10n.s("update.banner.body"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Button(L10n.s("update.banner.install"), action: state.installAvailableUpdate)
+                        .buttonStyle(PrimaryButtonStyle())
+                        .disabled(state.isDownloadingUpdate)
+                    Button(L10n.s("update.banner.later"), action: state.dismissUpdate)
+                        .buttonStyle(SoftButtonStyle())
+                        .disabled(state.isDownloadingUpdate)
+                    if state.isDownloadingUpdate {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.violet.opacity(0.09)))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.violet.opacity(0.25)))
+    }
+}
+
 struct PermissionBanner: View {
     @EnvironmentObject var state: AppState
 

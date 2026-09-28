@@ -71,6 +71,8 @@ final class AppState: ObservableObject {
     @Published var widgetTranslateOpen = false
     @Published var widgetDragging = false
     @Published var section: MainSection = .home
+    @Published var update: UpdateStatus = .idle
+    @Published var dismissedUpdate = false
     @Published var config: FlowConfig {
         didSet {
             guard config != oldValue else { return }
@@ -87,6 +89,7 @@ final class AppState: ObservableObject {
     var lookupCorrectionModel: (String) -> Void = { _ in }
     var finishOnboarding: () -> Void = {}
     var translateSelection: (String) -> Void = { _ in }
+    private var updateTask: Task<Void, Never>?
 
     init() {
         config = FlowConfig.load()
@@ -202,6 +205,99 @@ final class AppState: ObservableObject {
     }
 
     var hasPermissions: Bool { micGranted && axGranted }
+
+    var availableRelease: AppRelease? {
+        switch update {
+        case .available(let release), .downloading(let release):
+            return release
+        default:
+            return nil
+        }
+    }
+
+    var isDownloadingUpdate: Bool {
+        if case .downloading = update { return true }
+        return false
+    }
+
+    var showsUpdateOffer: Bool {
+        availableRelease != nil && !dismissedUpdate
+    }
+
+    func checkForUpdate(userInitiated: Bool = false) {
+        guard !SnapshotMode.isActive else { return }
+        if case .downloading = update { return }
+        updateTask?.cancel()
+        updateTask = Task { [weak self] in
+            await self?.performUpdateCheck(userInitiated: userInitiated)
+        }
+    }
+
+    func installAvailableUpdate() {
+        guard case .available = update else { return }
+        updateTask?.cancel()
+        beginUpdate()
+    }
+
+    func dismissUpdate() {
+        guard case .available(let release) = update else { return }
+        updateTask?.cancel()
+        UpdateCheck.dismissedVersion = release.version
+        dismissedUpdate = true
+    }
+
+    func openUpdatePage() {
+        NSWorkspace.shared.open(UpdateCheck.page)
+    }
+
+    @MainActor
+    private func performUpdateCheck(userInitiated: Bool) async {
+        update = .checking
+        do {
+            let release = try await UpdateCheck.fetch()
+            guard !Task.isCancelled else { return }
+            if UpdateCheck.isNewer(release.version, than: L10n.appVersion) {
+                dismissedUpdate = UpdateCheck.dismissedVersion == release.version
+                update = .available(release)
+                if !dismissedUpdate {
+                    beginUpdate()
+                }
+            } else {
+                update = .current
+            }
+        } catch {
+            guard !Task.isCancelled else { return }
+            update = userInitiated ? .failed : .idle
+        }
+    }
+
+    private func beginUpdate() {
+        guard case .available(let release) = update else { return }
+        updateTask = Task { @MainActor in
+            while phase != .idle {
+                if Task.isCancelled { return }
+                try? await Task.sleep(nanoseconds: 400_000_000)
+            }
+            if Task.isCancelled { return }
+            await performInstall(release)
+        }
+    }
+
+    @MainActor
+    private func performInstall(_ release: AppRelease) async {
+        update = .downloading(release)
+        do {
+            let pkg = try await UpdateCheck.download(release)
+            guard !Task.isCancelled else { return }
+            try await Task.detached(priority: .userInitiated) {
+                try UpdateCheck.stageRelaunch(pkg: pkg, version: release.version)
+            }.value
+            NSApp.terminate(nil)
+        } catch {
+            guard !Task.isCancelled else { return }
+            update = .failed
+        }
+    }
 
     func pushLevel(_ value: CGFloat) {
         var next = levels
