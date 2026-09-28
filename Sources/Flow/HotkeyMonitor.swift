@@ -37,21 +37,21 @@ enum Hotkey: String, CaseIterable {
 
     var symbol: String {
         switch self {
-        case .rightOption: return "⌥ rechts"
-        case .rightCommand: return "⌘ rechts"
-        case .rightControl: return "⌃ rechts"
-        case .function: return "fn"
-        case .leftControl: return "⌃ links"
+        case .rightOption: return L10n.s("hotkey.rightOption.symbol")
+        case .rightCommand: return L10n.s("hotkey.rightCommand.symbol")
+        case .rightControl: return L10n.s("hotkey.rightControl.symbol")
+        case .function: return L10n.s("hotkey.function.symbol")
+        case .leftControl: return L10n.s("hotkey.leftControl.symbol")
         }
     }
 
     var title: String {
         switch self {
-        case .rightOption: return "Rechte Option"
-        case .rightCommand: return "Rechte Befehlstaste"
-        case .rightControl: return "Rechte Control"
-        case .function: return "Fn"
-        case .leftControl: return "Linke Control"
+        case .rightOption: return L10n.s("hotkey.rightOption")
+        case .rightCommand: return L10n.s("hotkey.rightCommand")
+        case .rightControl: return L10n.s("hotkey.rightControl")
+        case .function: return L10n.s("hotkey.function")
+        case .leftControl: return L10n.s("hotkey.leftControl")
         }
     }
 }
@@ -61,6 +61,7 @@ final class HotkeyMonitor {
     var hotkey: Hotkey = .function {
         didSet { /* nächster Event nutzt die neue Taste */ }
     }
+    var onPress: (() -> Void)?
     var onHoldStart: (() -> Void)?
     var onHoldEnd: (() -> Void)?
     var onToggle: (() -> Void)?
@@ -173,6 +174,7 @@ final class HotkeyMonitor {
     private func handleFlags(keyCode: UInt16, down: Bool) {
         guard keyCode == hotkey.keyCode else { return }
         if down {
+            onPress?()
             armed = true
             let token = UUID()
             armToken = token

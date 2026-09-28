@@ -63,9 +63,20 @@ def parse_dictionary(text: str) -> tuple[list[str], list[tuple[str, str]]]:
     return hints, rules
 
 
+def weighted_terms(text: str) -> list[str]:
+    """Begriffe, die Whisper und die Korrektur bevorzugen sollen."""
+    hints, rules = parse_dictionary(text)
+    terms: list[str] = []
+    for term in hints + [dst for _, dst in rules]:
+        if term and term not in terms:
+            terms.append(term)
+    return terms
+
+
 def apply_rules(text: str, rules: list[tuple[str, str]]) -> str:
     for src, dst in sorted(rules, key=lambda rule: len(rule[0]), reverse=True):
-        text = re.compile(re.escape(src), re.IGNORECASE).sub(dst, text)
+        pattern = r"\b" + re.escape(src) + r"\b"
+        text = re.compile(pattern, re.IGNORECASE).sub(dst, text)
     return text
 
 
@@ -88,6 +99,8 @@ def token_budget(raw: str, selection: str | None) -> int:
     words = max(1, len(raw.split()))
     if selection:
         words += len(selection.split())
+        # A rewrite may be a whole document, not a one-line answer.
+        return min(1600, max(500, words * 4 + 80))
     # Knapp halten – 27B ist der Flaschenhals nach Whisper.
     return min(320, max(40, words * 3 + 24))
 
@@ -102,8 +115,10 @@ def build_messages(
 ) -> list[dict[str, str]]:
     if target_language:
         return build_translate_messages(raw if not selection else selection, target_language)
+    if selection and selection.strip():
+        return build_command_messages(raw, selection, style, instructions, dictionary)
 
-    hints, _rules = parse_dictionary(dictionary)
+    hints = weighted_terms(dictionary)
     style_text = STYLES.get(style, STYLES["auto"])
     lines = [
         "Du bist die Formulierungsstufe einer Diktier-App.",
@@ -124,14 +139,46 @@ def build_messages(
     extra = instructions.strip()
     if extra:
         lines.append("Zusätzliche Anweisung des Nutzers: " + extra)
-    if selection:
-        lines.append(
-            "Es ist Text markiert. Das Rohtranskript ist der Bearbeitungsbefehl. "
-            "Gib nur den Text zurück, der die Markierung ersetzt."
-        )
-        user = f"Markierter Text:\n{selection.strip()}\n\nGesprochener Befehl:\n{raw.strip()}"
-    else:
-        user = f"Rohtranskript:\n{raw.strip()}"
+    user = f"Rohtranskript:\n{raw.strip()}"
+    return [
+        {"role": "system", "content": "\n".join(lines)},
+        {"role": "user", "content": user},
+    ]
+
+
+def build_command_messages(
+    raw: str,
+    selection: str,
+    style: str,
+    instructions: str,
+    dictionary: str,
+) -> list[dict[str, str]]:
+    hints = weighted_terms(dictionary)
+    lines = [
+        "Du bist die Bearbeitungsstufe einer Diktier-App.",
+        "Im Textfeld ist Text markiert. Das Gesprochene ist die Anweisung, nicht der neue Text.",
+        "Schreibe den vollständigen Text, der die Markierung ersetzen soll.",
+        "Regeln:",
+        "- Gib nur diesen Ersatztext zurück.",
+        "- Wiederhole die Anweisung nicht und antworte nicht mit einem einzelnen Stichwort daraus.",
+        "- Verlangt die Anweisung ein Dokument, eine Liste, eine Zusammenfassung oder eine Umformulierung, schreibe das Ergebnis vollständig.",
+        "- Keine Erklärung, keine Anführungszeichen um die ganze Antwort, kein Markdown, außer der Text selbst Markdown sein soll.",
+        "- Fakten, Namen und Zahlen kommen aus der Markierung oder aus der Anweisung. Die verlangte Form darfst du ausformulieren.",
+        "- Behalte die Sprache der Markierung, außer die Anweisung verlangt eine andere.",
+    ]
+    tone = {
+        "email": "Wenn die Anweisung keinen Ton nennt, darf der Ersatz wie eine E-Mail klingen.",
+        "chat": "Wenn die Anweisung keinen Ton nennt, bleib im Ton einer kurzen Nachricht.",
+        "notes": "Wenn die Anweisung keinen Ton nennt, darf der Ersatz eine klare Notiz sein.",
+    }.get(style)
+    if tone:
+        lines.append("- " + tone)
+    if hints:
+        lines.append("- Schreibe diese Begriffe exakt so: " + ", ".join(hints) + ".")
+    extra = instructions.strip()
+    if extra:
+        lines.append("Zusätzliche Anweisung des Nutzers: " + extra)
+    user = f"Markierter Text:\n{selection.strip()}\n\nAnweisung:\n{raw.strip()}"
     return [
         {"role": "system", "content": "\n".join(lines)},
         {"role": "user", "content": user},

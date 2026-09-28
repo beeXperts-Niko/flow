@@ -1,4 +1,4 @@
-"""Korrektur über die OpenAI-Chat-API. Der Schlüssel kommt pro Anfrage und wird nicht gespeichert."""
+"""Korrektur über eine OpenAI-kompatible Chat-API. Der Schlüssel kommt pro Anfrage und wird nicht gespeichert."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ import re
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 DEFAULT_OPENAI_MODEL = "gpt-5.6-luna"
-API_URL = "https://api.openai.com/v1/chat/completions"
-MODELS_URL = "https://api.openai.com/v1/models"
+DEFAULT_BASE_URL = "https://api.openai.com/v1"
 _CACHE_TTL = 6 * 60 * 60
 
 # Schnelle Stufen, von schnell nach langsamer. Neuere Generationen gewinnen,
@@ -42,6 +42,27 @@ _choice = _Choice()
 _choice_lock = threading.Lock()
 
 
+def normalize_base_url(raw: str | None) -> str:
+    """Basisadresse ohne abschließenden Schrägstrich. Leer bleibt die OpenAI-Adresse."""
+    text = (raw or "").strip()
+    if not text:
+        return DEFAULT_BASE_URL
+    for suffix in ("/chat/completions", "/completions", "/models"):
+        if text.rstrip("/").endswith(suffix):
+            text = text.rstrip("/")[: -len(suffix)]
+    parsed = urllib.parse.urlparse(text.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise RuntimeError("Die API-Adresse muss mit http:// oder https:// beginnen")
+    path = parsed.path.rstrip("/")
+    if path in ("", "/"):
+        path = "/v1"
+    return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
+
+
+def is_openai_base(base: str) -> bool:
+    return (urllib.parse.urlparse(base).hostname or "").lower() == "api.openai.com"
+
+
 def reset_model_cache() -> None:
     with _choice_lock:
         _choice.fingerprint = ""
@@ -63,10 +84,13 @@ def choose_model(models: list[dict]) -> str:
         else:
             rest.append(parsed)
     pool = fast or rest
-    if not pool:
-        raise RuntimeError("Kein passendes Korrekturmodell für diesen Schlüssel")
-    pool.sort(key=_rank)
-    return pool[0][0]
+    if pool:
+        pool.sort(key=_rank)
+        return pool[0][0]
+    generic = listed_ids(models)
+    if not generic:
+        raise RuntimeError("Kein passendes Korrekturmodell")
+    return generic[0]
 
 
 def rank_models(models: list[dict]) -> list[str]:
@@ -86,16 +110,20 @@ def rank_models(models: list[dict]) -> list[str]:
             continue
         seen.add(model_id)
         ranked.append(model_id)
-    return ranked
+    return ranked or listed_ids(models)
 
 
 def model_catalog(
-    api_key: str, opener=urllib.request.urlopen, now: float | None = None
+    api_key: str,
+    opener=urllib.request.urlopen,
+    now: float | None = None,
+    base_url: str = "",
 ) -> tuple[str, list[str]]:
+    base = normalize_base_url(base_url)
     key = api_key.strip()
-    if not key:
+    if is_openai_base(base) and not key:
         raise RuntimeError("OpenAI-Schlüssel fehlt")
-    fingerprint = hashlib.sha256(key.encode()).hexdigest()[:16]
+    fingerprint = hashlib.sha256(f"{base}\n{key}".encode()).hexdigest()[:16]
     moment = time.monotonic() if now is None else now
     with _choice_lock:
         if (
@@ -105,7 +133,7 @@ def model_catalog(
             and moment - _choice.fetched < _CACHE_TTL
         ):
             return _choice.model, list(_choice.models)
-    data = fetch_models(key, opener)
+    data = fetch_models(key, opener, base)
     recommended = choose_model(data)
     ranked = rank_models(data)
     with _choice_lock:
@@ -116,15 +144,21 @@ def model_catalog(
     return recommended, ranked
 
 
-def resolve_model(api_key: str, opener=urllib.request.urlopen, now: float | None = None) -> str:
-    recommended, _ranked = model_catalog(api_key, opener, now)
+def resolve_model(
+    api_key: str,
+    opener=urllib.request.urlopen,
+    now: float | None = None,
+    base_url: str = "",
+) -> str:
+    recommended, _ranked = model_catalog(api_key, opener, now, base_url)
     return recommended
 
 
-def fetch_models(api_key: str, opener=urllib.request.urlopen) -> list[dict]:
+def fetch_models(api_key: str, opener=urllib.request.urlopen, base_url: str = "") -> list[dict]:
+    base = normalize_base_url(base_url)
     request = urllib.request.Request(
-        MODELS_URL,
-        headers={"Authorization": f"Bearer {api_key}"},
+        f"{base}/models",
+        headers=_headers(api_key, json_body=False),
         method="GET",
     )
     try:
@@ -132,12 +166,12 @@ def fetch_models(api_key: str, opener=urllib.request.urlopen) -> list[dict]:
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(_redact(error_message(raw, exc.code), api_key)) from None
+        raise RuntimeError(_redact(error_message(raw, exc.code, base), api_key)) from None
     except urllib.error.URLError as exc:
-        raise RuntimeError(f"OpenAI nicht erreichbar: {exc.reason}") from None
+        raise RuntimeError(f"{_label(base)} nicht erreichbar: {exc.reason}") from None
     data = payload.get("data")
     if not isinstance(data, list):
-        raise RuntimeError("OpenAI hat keine Modellliste geliefert")
+        raise RuntimeError(f"{_label(base)} hat keine Modellliste geliefert")
     return data
 
 
@@ -147,20 +181,41 @@ def complete(
     api_key: str,
     max_tokens: int,
     opener=urllib.request.urlopen,
+    base_url: str = "",
 ) -> str:
+    base = normalize_base_url(base_url)
     key = api_key.strip()
-    if not key:
+    if is_openai_base(base) and not key:
         raise RuntimeError("OpenAI-Schlüssel fehlt")
     chosen = model.strip()
     if not chosen or chosen == "auto":
-        chosen = resolve_model(key, opener)
-    modern = _generation(chosen) >= 5
+        chosen = resolve_model(key, opener, base_url=base)
+    if is_openai_base(base):
+        modern = _generation(chosen) >= 5
+        try:
+            return _post(
+                chosen, messages, max_tokens, key, opener, base,
+                effort=modern, temperature=not modern, token_field="max_completion_tokens",
+            )
+        except RuntimeError as exc:
+            if not modern or "reasoning_effort" not in str(exc).lower():
+                raise
+            return _post(
+                chosen, messages, max_tokens, key, opener, base,
+                effort=False, temperature=True, token_field="max_completion_tokens",
+            )
     try:
-        return _post(chosen, messages, max_tokens, key, opener, effort=modern, temperature=not modern)
+        return _post(
+            chosen, messages, max_tokens, key, opener, base,
+            effort=False, temperature=True, token_field="max_tokens",
+        )
     except RuntimeError as exc:
-        if not modern or "reasoning_effort" not in str(exc).lower():
+        if "max_tokens" not in str(exc).lower():
             raise
-        return _post(chosen, messages, max_tokens, key, opener, effort=False, temperature=True)
+        return _post(
+            chosen, messages, max_tokens, key, opener, base,
+            effort=False, temperature=False, token_field="max_completion_tokens",
+        )
 
 
 def _post(
@@ -169,13 +224,15 @@ def _post(
     max_tokens: int,
     api_key: str,
     opener,
+    base: str,
     *,
     effort: bool,
     temperature: bool,
+    token_field: str,
 ) -> str:
     payload: dict = {
         "model": model,
-        "max_completion_tokens": max_tokens,
+        token_field: max_tokens,
         "messages": messages,
     }
     if effort:
@@ -183,23 +240,54 @@ def _post(
     if temperature:
         payload["temperature"] = 0.2
     request = urllib.request.Request(
-        API_URL,
+        f"{base}/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
+        headers=_headers(api_key, json_body=True),
         method="POST",
     )
+    timeout = 45 if is_openai_base(base) else 90
     try:
-        with opener(request, timeout=45) as response:
+        with opener(request, timeout=timeout) as response:
             body = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(_redact(error_message(raw, exc.code), api_key)) from None
+        raise RuntimeError(_redact(error_message(raw, exc.code, base), api_key)) from None
     except urllib.error.URLError as exc:
-        raise RuntimeError(f"OpenAI nicht erreichbar: {exc.reason}") from None
+        raise RuntimeError(f"{_label(base)} nicht erreichbar: {exc.reason}") from None
     return message_text(body)
+
+
+def _headers(api_key: str, *, json_body: bool) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    if json_body:
+        headers["Content-Type"] = "application/json"
+    key = api_key.strip()
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    return headers
+
+
+def _label(base: str) -> str:
+    return "OpenAI" if is_openai_base(base) else "Korrektur-API"
+
+
+_SKIP_ID = ("embed", "whisper", "tts", "dall-e", "moderation", "audio", "image", "realtime", "transcribe")
+
+
+def listed_ids(models: list[dict]) -> list[str]:
+    """Modellnamen, die keine Embeddings oder Erkennung sind. Reihenfolge der API bleibt."""
+    ids: list[str] = []
+    seen: set[str] = set()
+    for item in models:
+        model_id = str(item.get("id") or "").strip()
+        if not model_id or model_id in seen:
+            continue
+        folded = model_id.lower()
+        if any(part in folded for part in _SKIP_ID):
+            continue
+        seen.add(model_id)
+        ids.append(model_id)
+    return ids
 
 
 def _parse_model(item: dict) -> tuple[str, tuple[int, int], str | None, bool, int] | None:
@@ -228,7 +316,7 @@ def _generation(model: str) -> int:
 def message_text(payload: dict) -> str:
     choices = payload.get("choices") or []
     if not choices:
-        raise RuntimeError("OpenAI hat keine Antwort geliefert")
+        raise RuntimeError("Die Korrektur hat keine Antwort geliefert")
     content = (choices[0].get("message") or {}).get("content")
     if isinstance(content, str):
         return content
@@ -243,15 +331,16 @@ def message_text(payload: dict) -> str:
     return ""
 
 
-def error_message(raw: str, status: int) -> str:
+def error_message(raw: str, status: int, base: str = "") -> str:
+    label = _label(normalize_base_url(base)) if base else "OpenAI"
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
-        return f"OpenAI HTTP {status}"
+        return f"{label} HTTP {status}"
     error = payload.get("error")
     if isinstance(error, dict) and error.get("message"):
-        return f"OpenAI: {error['message']}"
-    return f"OpenAI HTTP {status}"
+        return f"{label}: {error['message']}"
+    return f"{label} HTTP {status}"
 
 
 def _redact(text: str, secret: str) -> str:

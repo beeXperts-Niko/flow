@@ -13,44 +13,46 @@ struct StyleOption: Identifiable {
         all.first { $0.id == id }?.title ?? id
     }
 
-    static let all: [StyleOption] = [
-        StyleOption(
-            id: "auto", title: "Automatisch", icon: "sparkles",
-            blurb: "Erkennt selbst, ob du eine Mail, Liste oder kurze Nachricht diktierst.",
-            before: "ähm kannst du mir morgen die zahlen schicken",
-            after: "Kannst du mir morgen die Zahlen schicken?"
-        ),
-        StyleOption(
-            id: "literal", title: "Wörtlich", icon: "text.quote",
-            blurb: "Nur Füllwörter und Zeichensetzung. Deine Formulierung bleibt.",
-            before: "also das passt so halt für mich",
-            after: "Das passt so für mich."
-        ),
-        StyleOption(
-            id: "email", title: "E-Mail", icon: "envelope",
-            blurb: "Anrede, Absätze und Gruß – bereit zum Senden.",
-            before: "hallo frau berg danke für ihre rückmeldung viele grüße dieter",
-            after: "Hallo Frau Berg,\n\ndanke für Ihre Rückmeldung.\n\nViele Grüße\nDieter"
-        ),
-        StyleOption(
-            id: "chat", title: "Nachricht", icon: "bubble.left.and.bubble.right",
-            blurb: "Locker und kurz für Slack, WhatsApp und Teams.",
-            before: "bin in fünf minuten da ähm bring kaffee mit",
-            after: "Bin in 5 Minuten da, bring Kaffee mit!"
-        ),
-        StyleOption(
-            id: "notes", title: "Notizen", icon: "list.bullet.rectangle",
-            blurb: "Klare Punkte und Absätze für Gedanken und Protokolle.",
-            before: "punkte fürs meeting budget zeitplan und neue kampagne",
-            after: "Punkte fürs Meeting:\n- Budget\n- Zeitplan\n- Neue Kampagne"
-        ),
-        StyleOption(
-            id: "code", title: "Coding", icon: "chevron.left.forwardslash.chevron.right",
-            blurb: "Bezeichner, Schreibweise und Symbole bleiben erhalten.",
-            before: "funktion get user by id mit parameter id",
-            after: "getUserById(id)"
-        )
-    ]
+    static var all: [StyleOption] {
+        [
+            StyleOption(
+                id: "auto", title: L10n.s("style.auto"), icon: "sparkles",
+                blurb: L10n.s("style.auto.blurb"),
+                before: L10n.s("style.auto.before"),
+                after: L10n.s("style.auto.after")
+            ),
+            StyleOption(
+                id: "literal", title: L10n.s("style.literal"), icon: "text.quote",
+                blurb: L10n.s("style.literal.blurb"),
+                before: L10n.s("style.literal.before"),
+                after: L10n.s("style.literal.after")
+            ),
+            StyleOption(
+                id: "email", title: L10n.s("style.email"), icon: "envelope",
+                blurb: L10n.s("style.email.blurb"),
+                before: L10n.s("style.email.before"),
+                after: L10n.s("style.email.after")
+            ),
+            StyleOption(
+                id: "chat", title: L10n.s("style.chat"), icon: "bubble.left.and.bubble.right",
+                blurb: L10n.s("style.chat.blurb"),
+                before: L10n.s("style.chat.before"),
+                after: L10n.s("style.chat.after")
+            ),
+            StyleOption(
+                id: "notes", title: L10n.s("style.notes"), icon: "list.bullet.rectangle",
+                blurb: L10n.s("style.notes.blurb"),
+                before: L10n.s("style.notes.before"),
+                after: L10n.s("style.notes.after")
+            ),
+            StyleOption(
+                id: "code", title: L10n.s("style.code"), icon: "chevron.left.forwardslash.chevron.right",
+                blurb: L10n.s("style.code.blurb"),
+                before: L10n.s("style.code.before"),
+                after: L10n.s("style.code.after")
+            )
+        ]
+    }
 }
 
 struct StyleView: View {
@@ -59,14 +61,14 @@ struct StyleView: View {
     @State private var showAllApps = false
 
     var body: some View {
-        Page(title: "Stil", subtitle: "Flow setzt den Stil nach dem Programm im Vordergrund. Den Standard nutzt es, wenn keins erkannt wird.") {
+        Page(title: L10n.s("style.title"), subtitle: L10n.s("style.subtitle")) {
             if let app = state.frontApp {
-                Text("Gerade vorn: \(app.name) · \(StyleOption.titled(state.effectiveStyle(for: app)))")
+                Text(L10n.s("style.front", app.name, StyleOption.titled(state.effectiveStyle(for: app))))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
             }
 
-            Text("Standardstil")
+            Text(L10n.s("style.default"))
                 .font(.system(size: 14, weight: .semibold))
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 3), spacing: 14) {
                 ForEach(StyleOption.all) { option in
@@ -79,14 +81,14 @@ struct StyleView: View {
             appStyles
 
             VStack(alignment: .leading, spacing: 12) {
-                Label("Eigene Anweisung", systemImage: "text.bubble")
+                Label(L10n.s("style.custom.title"), systemImage: "text.bubble")
                     .font(.system(size: 14, weight: .semibold))
-                Text("Gilt für jedes Diktat, zum Beispiel: Sie-Form, kurze Sätze, keine Emojis.")
+                Text(L10n.s("style.custom.body"))
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                 ZStack(alignment: .topLeading) {
                     if state.config.instructions.isEmpty {
-                        Text("Schreibe in der Sie-Form und halte Sätze kurz.")
+                        Text(L10n.s("style.custom.placeholder"))
                             .font(.system(size: 13))
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 13)
@@ -105,16 +107,16 @@ struct StyleView: View {
 
             HStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("Sprache", systemImage: "globe")
+                    Label(L10n.s("style.language"), systemImage: "globe")
                         .font(.system(size: 14, weight: .semibold))
                     Picker("", selection: $state.config.language) {
-                        Text("Automatisch").tag("auto")
-                        Text("Deutsch").tag("de")
-                        Text("Englisch").tag("en")
+                        Text(L10n.s("lang.auto")).tag("auto")
+                        Text(L10n.s("lang.de")).tag("de")
+                        Text(L10n.s("lang.en")).tag("en")
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
-                    Text("Fest eingestellt erkennt Whisper genauer.")
+                    Text(L10n.s("style.languageHint"))
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
                 }
@@ -122,14 +124,14 @@ struct StyleView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Label("Befehlsmodus", systemImage: "wand.and.stars")
+                        Label(L10n.s("style.command.title"), systemImage: "wand.and.stars")
                             .font(.system(size: 14, weight: .semibold))
                         Spacer()
                         Toggle("", isOn: $state.config.commandMode)
                             .labelsHidden()
                             .toggleStyle(.switch)
                     }
-                    Text("Markiere Text und sag zum Beispiel „mach das freundlicher“ oder „übersetz das ins Englische“.")
+                    Text(L10n.s("style.command.body"))
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -144,27 +146,27 @@ struct StyleView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Label("Pro Programm", systemImage: "macwindow")
+                    Label(L10n.s("style.perApp.title"), systemImage: "macwindow")
                         .font(.system(size: 14, weight: .semibold))
-                    Text("Die Liste kommt aus dem Programme-Ordner und wächst mit den Apps, die du öffnest. Den Stil kannst du hier ändern.")
+                    Text(L10n.s("style.perApp.body"))
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 12)
-                Button(showAllApps ? "Nur erkannte" : "Alle Programme") {
+                Button(showAllApps ? L10n.s("style.recognizedOnly") : L10n.s("style.allApps")) {
                     showAllApps.toggle()
                 }
                 .buttonStyle(SoftButtonStyle())
             }
 
-            TextField("Programm suchen", text: $appQuery)
+            TextField(L10n.s("style.search"), text: $appQuery)
                 .textFieldStyle(.roundedBorder)
 
             if visibleApps.isEmpty {
                 Text(state.config.appStyles.isEmpty
-                     ? "Programme werden gelesen…"
-                     : "Kein Programm für diese Suche.")
+                     ? L10n.s("style.scanning")
+                     : L10n.s("style.noApp"))
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
             } else {
@@ -226,7 +228,7 @@ private struct AppStyleRow: View {
 
     private var hint: String {
         if profile.customized, profile.style != profile.suggested {
-            return "Vorschlag: \(StyleOption.titled(profile.suggested))"
+            return L10n.s("style.suggestion", StyleOption.titled(profile.suggested))
         }
         return StyleOption.titled(profile.effectiveStyle)
     }

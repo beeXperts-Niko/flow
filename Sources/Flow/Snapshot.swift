@@ -12,7 +12,8 @@ enum Snapshot {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let state = AppState()
         state.engineReady = true
-        state.engineStatus = "Bereit"
+        state.engineStatus = L10n.s("engine.ready")
+        state.engineLoading = false
         state.polishAvailable = true
         state.correctionModel = "gpt-6-luna"
         state.correctionModels = ["gpt-6-luna"]

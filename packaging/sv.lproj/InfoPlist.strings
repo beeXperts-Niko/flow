@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "Flow använder mikrofonen för att känna igen diktering lokalt på den här Macen.";
+"NSAppleEventsUsageDescription" = "Flow infogar den dikterade texten i den aktiva appen.";

@@ -6,11 +6,12 @@ struct SettingsView: View {
     @EnvironmentObject var state: AppState
     @State private var whisperDraft = ""
     @State private var apiKeyDraft = ""
+    @State private var modelNameDraft = ""
 
     var body: some View {
-        Page(title: "Einstellungen", subtitle: "Taste, Aufnahme, Berechtigungen und Modell.") {
-            SettingsSection(title: "Taste", icon: "keyboard") {
-                SettingRow(title: "Diktiertaste", detail: "Standard ist Fn. Halten zum Sprechen, Doppeltipp für freies Sprechen.") {
+        Page(title: L10n.s("settings.title"), subtitle: L10n.s("settings.subtitle")) {
+            SettingsSection(title: L10n.s("settings.hotkey.section"), icon: "keyboard") {
+                SettingRow(title: L10n.s("settings.hotkey.title"), detail: L10n.s("settings.hotkey.detail")) {
                     Picker("", selection: $state.config.hotkey) {
                         ForEach([Hotkey.function, .rightOption, .rightCommand, .rightControl, .leftControl], id: \.rawValue) { key in
                             Text(key.title).tag(key.rawValue)
@@ -21,8 +22,8 @@ struct SettingsView: View {
                 }
             }
 
-            SettingsSection(title: "Sprache", icon: "globe") {
-                SettingRow(title: "Muttersprache", detail: "Für Übersetzungen aus dem Widget (Flaggen).") {
+            SettingsSection(title: L10n.s("settings.language.section"), icon: "globe") {
+                SettingRow(title: L10n.s("settings.native.title"), detail: L10n.s("settings.native.detail")) {
                     Picker("", selection: $state.config.nativeLanguage) {
                         ForEach(TranslateLanguage.all) { lang in
                             Text("\(lang.id.uppercased())  \(lang.name)").tag(lang.id)
@@ -32,11 +33,11 @@ struct SettingsView: View {
                     .fixedSize()
                 }
                 Divider()
-                SettingRow(title: "Erkennung", detail: "Whisper: fest eingestellt erkennt genauer.") {
+                SettingRow(title: L10n.s("settings.recognition.title"), detail: L10n.s("settings.recognition.detail")) {
                     Picker("", selection: $state.config.language) {
-                        Text("Automatisch").tag("auto")
-                        Text("Deutsch").tag("de")
-                        Text("Englisch").tag("en")
+                        Text(L10n.s("lang.auto")).tag("auto")
+                        Text(L10n.s("lang.de")).tag("de")
+                        Text(L10n.s("lang.en")).tag("en")
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
@@ -44,9 +45,9 @@ struct SettingsView: View {
                 }
             }
 
-            SettingsSection(title: "Aufnahme", icon: "waveform") {
+            SettingsSection(title: L10n.s("settings.recording.section"), icon: "waveform") {
                 SettingRow(
-                    title: "Automatische Korrektur",
+                    title: L10n.s("settings.correction.title"),
                     detail: correctionDetail
                 ) {
                     Toggle("", isOn: $state.config.autoCorrect)
@@ -55,37 +56,48 @@ struct SettingsView: View {
                         .disabled(!state.engineReady)
                 }
                 Divider()
-                SettingRow(title: "Töne", detail: "Kurzer Klang beim Start und Ende.") {
+                SettingRow(title: L10n.s("settings.sounds.title"), detail: L10n.s("settings.sounds.detail")) {
                     Toggle("", isOn: $state.config.playSounds).labelsHidden().toggleStyle(.switch)
                 }
                 Divider()
-                SettingRow(title: "Markierten Text umschreiben", detail: "Gesprochenes wird zum Befehl für die Markierung.") {
+                SettingRow(title: L10n.s("settings.mute.title"), detail: L10n.s("settings.mute.detail")) {
+                    Picker("", selection: $state.config.othersAudio) {
+                        Text(L10n.s("audio.off")).tag(OthersAudio.off.rawValue)
+                        Text(L10n.s("audio.quiet")).tag(OthersAudio.quiet.rawValue)
+                        Text(L10n.s("audio.mute")).tag(OthersAudio.mute.rawValue)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 220)
+                }
+                Divider()
+                SettingRow(title: L10n.s("settings.rewrite.title"), detail: L10n.s("settings.rewrite.detail")) {
                     Toggle("", isOn: $state.config.commandMode).labelsHidden().toggleStyle(.switch)
                 }
             }
 
-            SettingsSection(title: "System", icon: "macwindow") {
-                SettingRow(title: "Beim Anmelden starten", detail: "Flow liegt dann direkt in der Menüleiste bereit.") {
+            SettingsSection(title: L10n.s("settings.system.section"), icon: "macwindow") {
+                SettingRow(title: L10n.s("settings.login.title"), detail: L10n.s("settings.login.detail")) {
                     Toggle("", isOn: $state.config.launchAtLogin).labelsHidden().toggleStyle(.switch)
                 }
             }
 
-            SettingsSection(title: "Berechtigungen", icon: "lock.shield") {
+            SettingsSection(title: L10n.s("settings.permissions.section"), icon: "lock.shield") {
                 PermissionRow(
-                    title: "Mikrofon",
-                    detail: "Damit Flow deine Stimme hört.",
+                    title: L10n.s("common.mic"),
+                    detail: L10n.s("settings.mic.detail"),
                     icon: "mic.fill",
                     granted: state.micGranted,
                     action: state.requestMicrophone
                 )
                 Divider()
                 PermissionRow(
-                    title: "Bedienungshilfen",
-                    detail: "Für die globale Taste und das Einfügen in andere Apps.",
+                    title: L10n.s("common.accessibility"),
+                    detail: L10n.s("settings.ax.detail"),
                     icon: "accessibility",
                     granted: state.axGranted,
                     action: state.openAccessibility,
-                    repairHint: "Schalter an, Flow sagt trotzdem nein? Eintrag für Flow löschen oder aus/an, danach Flow neu starten."
+                    repairHint: L10n.s("settings.ax.repair")
                 )
                 if !state.axGranted {
                     Divider()
@@ -93,72 +105,106 @@ struct SettingsView: View {
                 }
             }
 
-            SettingsSection(title: "Modell", icon: "cpu") {
-                SettingRow(
-                    title: "Whisper",
-                    detail: SnapshotMode.isActive
-                        ? "Liegt lokal auf diesem Mac, im Flow-Ordner."
-                        : "Läuft immer lokal in \(SupportPaths.models.path)"
-                ) {
-                    Button("Im Finder zeigen") {
-                        NSWorkspace.shared.activateFileViewerSelecting([SupportPaths.models])
-                    }
-                    .buttonStyle(SoftButtonStyle())
-                }
-                Divider()
-                SettingRow(title: "Spracherkennung", detail: "Modelldatei im Flow-Ordner. Die Aufnahme geht nicht in die Cloud.") {
+            SettingsSection(title: L10n.s("settings.asr.title"), icon: "waveform") {
+                SettingRow(title: L10n.s("settings.model.short"), detail: L10n.s("settings.asr.detail")) {
                     HStack(spacing: 6) {
                         TextField("", text: $whisperDraft)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 260)
                             .onSubmit(applyWhisper)
                         if whisperDraft != state.config.whisperModel {
-                            Button("Übernehmen", action: applyWhisper).buttonStyle(SoftButtonStyle())
+                            Button(L10n.s("settings.apply"), action: applyWhisper).buttonStyle(SoftButtonStyle())
                         }
                     }
                 }
                 Divider()
-                SettingRow(title: "API-Schlüssel", detail: "Nur für die Korrektur. ⌘V oder Einfügen. Liegt danach im Schlüsselbund.") {
-                    HStack(spacing: 6) {
-                        SecureField("sk-…", text: $apiKeyDraft)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 200)
-                        Button("Einfügen", action: pasteAPIKey)
-                            .buttonStyle(SoftButtonStyle())
+                SettingRow(
+                    title: "Whisper",
+                    detail: SnapshotMode.isActive
+                        ? L10n.s("settings.whisper.local")
+                        : L10n.s("settings.whisper.path", SupportPaths.models.path)
+                ) {
+                    Button(L10n.s("settings.reveal")) {
+                        NSWorkspace.shared.activateFileViewerSelecting([SupportPaths.models])
                     }
+                    .buttonStyle(SoftButtonStyle())
                 }
                 Divider()
-                SettingRow(title: "Korrektur-Modell", detail: correctionModelDetail) {
-                    Picker("", selection: $state.config.openAIModel) {
-                        Text(recommendedModelTitle).tag("auto")
-                        if !modelChoices.isEmpty {
-                            Divider()
-                        }
-                        ForEach(modelChoices, id: \.self) { id in
-                            Text(id).tag(id)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: 240)
-                }
-                Divider()
-                SettingRow(title: "Status", detail: state.engineStatus) {
+                SettingRow(title: L10n.s("settings.status"), detail: state.engineStatus) {
                     HStack(spacing: 8) {
                         StatusPill(state: state.engineState, text: statusLabel)
-                        Button("Neu starten") { state.reloadEngine() }.buttonStyle(SoftButtonStyle())
+                        Button(L10n.s("settings.restart")) { state.reloadEngine() }.buttonStyle(SoftButtonStyle())
                     }
                 }
             }
 
-            SettingsSection(title: "Daten", icon: "folder") {
-                SettingRow(title: "Speicherort", detail: "Einstellungen, Verlauf und Protokoll liegen nur auf diesem Mac.") {
+            SettingsSection(title: L10n.s("settings.correction.section"), icon: "sparkles") {
+                SettingRow(title: L10n.s("settings.model.short"), detail: correctionModelDetail) {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Picker("", selection: $state.config.correctionKind) {
+                            Text(L10n.s("settings.correction.chatgpt")).tag("chatgpt")
+                            Text(L10n.s("settings.correction.own")).tag("custom")
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 240)
+                        if state.config.usesCustomCorrectionAPI {
+                            TextField(L10n.s("settings.model.namePlaceholder"), text: $modelNameDraft)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 240)
+                                .onSubmit(applyModelName)
+                                .onChange(of: modelNameDraft) { _, _ in applyModelName() }
+                                .help(L10n.s("settings.model.customHint"))
+                        } else {
+                            Picker("", selection: $state.config.openAIModel) {
+                                Text(recommendedModelTitle).tag("auto")
+                                if !modelChoices.isEmpty {
+                                    Divider()
+                                }
+                                ForEach(modelChoices, id: \.self) { id in
+                                    Text(id).tag(id)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 240)
+                        }
+                    }
+                }
+                if state.config.usesCustomCorrectionAPI {
+                    Divider()
+                    SettingRow(title: L10n.s("settings.api.title"), detail: L10n.s("settings.api.detail")) {
+                        TextField(L10n.s("settings.api.placeholder"), text: $state.config.correctionBaseURL)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 280)
+                            .onSubmit { state.lookupCorrectionModel(apiKeyDraft) }
+                    }
+                }
+                Divider()
+                SettingRow(
+                    title: L10n.s("settings.key.title"),
+                    detail: state.config.usesCustomCorrectionAPI
+                        ? L10n.s("settings.key.detailCustom")
+                        : L10n.s("settings.key.detail")
+                ) {
+                    HStack(spacing: 6) {
+                        SecureField("sk-…", text: $apiKeyDraft)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 200)
+                        Button(L10n.s("settings.paste"), action: pasteAPIKey)
+                            .buttonStyle(SoftButtonStyle())
+                    }
+                }
+            }
+
+            SettingsSection(title: L10n.s("settings.data.section"), icon: "folder") {
+                SettingRow(title: L10n.s("settings.storage.title"), detail: L10n.s("settings.storage.detail")) {
                     HStack(spacing: 8) {
-                        Button("Im Finder zeigen") {
+                        Button(L10n.s("settings.reveal")) {
                             NSWorkspace.shared.activateFileViewerSelecting([SupportPaths.config])
                         }
                         .buttonStyle(SoftButtonStyle())
-                        Button("Protokoll") {
+                        Button(L10n.s("settings.log")) {
                             NSWorkspace.shared.open(SupportPaths.log)
                         }
                         .buttonStyle(SoftButtonStyle())
@@ -168,9 +214,7 @@ struct SettingsView: View {
 
             HStack(spacing: 6) {
                 Image(systemName: "lock.fill")
-                Text(state.config.correctsWithOpenAI
-                     ? "Flow 1.0 · Die Aufnahme bleibt auf diesem Mac. Zur Korrektur geht der Text an OpenAI."
-                     : "Flow 1.0 · Audio und Text verlassen deinen Mac nicht.")
+                Text(footerText)
             }
             .font(.system(size: 11.5))
             .foregroundStyle(.tertiary)
@@ -180,20 +224,54 @@ struct SettingsView: View {
         .onAppear {
             whisperDraft = state.config.whisperModel
             apiKeyDraft = OpenAIKeyStore.load()
+            syncModelName()
             state.lookupCorrectionModel(apiKeyDraft)
         }
         .onChange(of: apiKeyDraft) { _, _ in
             let key = apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
             OpenAIKeyStore.save(key)
-            if state.config.correctsWithOpenAI {
-                state.polishAvailable = state.engineReady && !key.isEmpty
-            }
+            state.polishAvailable = state.engineReady && state.config.correctionConfigured(hasKey: !key.isEmpty)
             state.lookupCorrectionModel(key)
+        }
+        .onChange(of: state.config.correctionKind) { _, _ in
+            state.polishAvailable = state.engineReady && state.config.correctionConfigured(
+                hasKey: !apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
+            state.lookupCorrectionModel(apiKeyDraft)
+        }
+        .onChange(of: state.config.correctionBaseURL) { _, _ in
+            state.polishAvailable = state.engineReady && state.config.correctionConfigured(
+                hasKey: !apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            )
+            state.lookupCorrectionModel(apiKeyDraft)
+        }
+        .onChange(of: state.config.openAIModel) { _, _ in
+            syncModelName()
         }
     }
 
+    private var footerText: String {
+        if state.config.usesCustomCorrectionAPI {
+            return L10n.s("settings.footer.custom", L10n.appVersion)
+        }
+        return state.config.correctsWithOpenAI
+            ? L10n.s("settings.footer.on", L10n.appVersion)
+            : L10n.s("settings.footer.off", L10n.appVersion)
+    }
+
+    private func syncModelName() {
+        modelNameDraft = state.config.openAIModel == "auto" ? "" : state.config.openAIModel
+    }
+
+    private func applyModelName() {
+        let name = modelNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let next = name.isEmpty ? "auto" : name
+        guard state.config.openAIModel != next else { return }
+        state.config.openAIModel = next
+    }
+
     private var recommendedModelTitle: String {
-        state.correctionModel.isEmpty ? "Empfohlen" : "Empfohlen: \(state.correctionModel)"
+        state.correctionModel.isEmpty ? L10n.s("settings.recommended") : L10n.s("settings.recommendedNamed", state.correctionModel)
     }
 
     private var modelChoices: [String] {
@@ -206,33 +284,46 @@ struct SettingsView: View {
     }
 
     private var correctionModelDetail: String {
+        if state.config.usesCustomCorrectionAPI {
+            if state.config.openAIModel != "auto" {
+                let recommendation = state.correctionModel.isEmpty ? "—" : state.correctionModel
+                return L10n.s("settings.model.pinned", state.config.openAIModel, recommendation)
+            }
+            if state.correctionModel.isEmpty {
+                return L10n.s("settings.model.typeName")
+            }
+            return L10n.s("settings.model.auto", state.correctionModel)
+        }
         if apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Empfohlen ist immer die neueste schnelle Stufe für deinen Schlüssel."
+            return L10n.s("settings.model.noKey")
         }
         if state.correctionModel.isEmpty {
-            return "Die Empfehlung wird gerade über den Schlüssel ermittelt."
+            return L10n.s("settings.model.looking")
         }
         if state.config.openAIModel == "auto" {
-            return "Empfohlen: \(state.correctionModel). Im Menü kannst du ein anderes Modell festlegen."
+            return L10n.s("settings.model.auto", state.correctionModel)
         }
-        return "Festgelegt auf \(state.config.openAIModel). Empfehlung: \(state.correctionModel)."
+        return L10n.s("settings.model.pinned", state.config.openAIModel, state.correctionModel)
     }
 
     private var correctionDetail: String {
         if !state.config.autoCorrect {
-            return "Aus. Whisper schreibt den Text, wie er ihn hört."
+            return L10n.s("settings.correction.off")
+        }
+        if state.config.usesCustomCorrectionAPI {
+            return L10n.s("settings.correction.custom")
         }
         if apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "An, aber ohne API-Schlüssel bleibt es bei Whisper. Den Schlüssel trägst du unten ein."
+            return L10n.s("settings.correction.noKey")
         }
-        return "OpenAI formuliert den Text nach. Die Aufnahme bleibt auf diesem Mac."
+        return L10n.s("settings.correction.on")
     }
 
     private var statusLabel: String {
         switch state.engineState {
-        case .ready: return "Bereit"
-        case .loading: return "Lädt"
-        case .error: return "Fehler"
+        case .ready: return L10n.s("status.ready")
+        case .loading: return L10n.s("status.loading")
+        case .error: return L10n.s("status.error")
         }
     }
 
@@ -283,8 +374,8 @@ struct SettingRow<Control: View>: View {
                 Text(detail)
                     .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             control

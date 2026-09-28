@@ -14,6 +14,8 @@ final class OverlayController {
     private var anchor: NSPoint?
     private var mode: Mode = .collapsed
     private var shrinkWork: DispatchWorkItem?
+    /// The pointer left while the bar had to stay open (dictation or translate menu).
+    private var pointerLeft = false
 
     private enum Mode: Int {
         case collapsed, bar, menu
@@ -87,20 +89,32 @@ final class OverlayController {
     private func setHovered(_ hovering: Bool) {
         guard let state else { return }
         if hovering {
+            pointerLeft = false
             leaveWork?.cancel()
             leaveWork = nil
             if !state.widgetHovered { state.widgetHovered = true }
             return
         }
-        guard !state.isBusy, !state.widgetTranslateOpen, !state.widgetDragging else { return }
+        // Dragging reports a leave as the panel moves. Ignore that.
+        // A leave during dictation or while the menu is open must still be remembered,
+        // otherwise the bar stays up after the phase returns to idle.
+        guard !state.widgetDragging else { return }
         leaveWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self, let state = self.state else { return }
-            guard !state.widgetTranslateOpen, !state.widgetDragging else { return }
-            state.widgetHovered = false
+            self?.finishLeave()
         }
         leaveWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.28, execute: work)
+    }
+
+    private func finishLeave() {
+        guard let state, !state.widgetDragging else { return }
+        if state.widgetTranslateOpen || state.isBusy {
+            pointerLeft = true
+            return
+        }
+        pointerLeft = false
+        state.widgetHovered = false
     }
 
     private func dragChanged() {
@@ -156,6 +170,7 @@ final class OverlayController {
     /// Grow the panel immediately so SwiftUI can animate inside it;
     /// shrink only after the collapse animation has finished.
     private func updateMode() {
+        releaseHoverIfPointerLeft()
         let target = targetMode()
         shrinkWork?.cancel()
         shrinkWork = nil
@@ -172,6 +187,18 @@ final class OverlayController {
             shrinkWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.42, execute: work)
         }
+    }
+
+    /// Hover state can stick after a dictation: the pointer left while the phase
+    /// was busy, and that leave used to be ignored. Once idle, trust the pointer.
+    private func releaseHoverIfPointerLeft() {
+        guard let state else { return }
+        guard state.widgetHovered, state.phase == .idle else { return }
+        guard !state.widgetTranslateOpen, !state.widgetDragging else { return }
+        let outside = !panel.frame.contains(NSEvent.mouseLocation)
+        guard pointerLeft || outside else { return }
+        pointerLeft = false
+        state.widgetHovered = false
     }
 
     private func resolvedAnchor() -> NSPoint {
@@ -200,7 +227,8 @@ final class OverlayController {
             // by transparent margin, so it may overhang the edge instead of shifting the bar sideways.
             let half = Mode.bar.size.width / 2
             x = min(max(x, vf.minX + 8 + half), vf.maxX - 8 - half)
-            y = min(max(y, vf.minY + 12), vf.maxY - size.height - 8)
+            let limits = verticalLimits(for: size, in: vf)
+            y = min(max(y, limits.minY), limits.maxY)
         }
         let frame = NSRect(
             x: (x - size.width / 2).rounded(),
@@ -222,7 +250,15 @@ final class OverlayController {
         return NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
     }
 
-    /// Keep the panel fully inside the visible frame (above Dock / menu bar).
+    /// The panel keeps empty space under the pill. That space may cross into the Dock
+    /// so the pill itself can sit on the Dock or on the screen edge.
+    private func verticalLimits(for size: NSSize, in visible: NSRect) -> (minY: CGFloat, maxY: CGFloat) {
+        let minY = visible.minY - OverlayView.pillBottomInset
+        let maxY = visible.maxY - size.height - 8
+        return (minY, max(minY, maxY))
+    }
+
+    /// Keep the pill inside the visible frame: above the menu bar, and down to the Dock or screen edge.
     private func clamped(_ origin: NSPoint, size: NSSize, in visible: NSRect? = nil) -> NSPoint {
         let vf: NSRect
         if let visible {
@@ -232,14 +268,12 @@ final class OverlayController {
         } else {
             return origin
         }
-        // Extra bottom inset so we never sit under the Dock (visibleFrame can be tight).
         let padX: CGFloat = 8
-        let padTop: CGFloat = 8
-        let padBottom: CGFloat = 12
         let minX = vf.minX + padX
         let maxX = vf.maxX - size.width - padX
-        let minY = vf.minY + padBottom
-        let maxY = vf.maxY - size.height - padTop
+        let limits = verticalLimits(for: size, in: vf)
+        let minY = limits.minY
+        let maxY = limits.maxY
         return NSPoint(
             x: min(max(origin.x, minX), max(minX, maxX)),
             y: min(max(origin.y, minY), max(minY, maxY))
@@ -334,7 +368,7 @@ struct OverlayView: View {
         .clipShape(Capsule(style: .continuous))
         .softDropShadow(.bar)
         .contentShape(Capsule())
-        .help(expanded ? "" : "Ziehen zum Verschieben · fn halten zum Diktieren")
+        .help(expanded ? "" : L10n.s("overlay.drag", state.config.resolvedHotkey.symbol))
     }
 
     static let recordingPillWidth: CGFloat = 196
@@ -386,20 +420,28 @@ struct OverlayView: View {
                 iconChip(system: "stop.fill", tint: .red, action: state.toggleRecording)
             }
         case .transcribing:
-            statusRow(icon: nil, title: "Erkennen…") {
+            statusRow(icon: nil, title: L10n.s("overlay.recognizing")) {
                 ThinkingWave().frame(width: 32, height: 14)
             }
         case .polishing(let raw):
-            HStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(LinearGradient(colors: [Theme.violet, Theme.pink], startPoint: .top, endPoint: .bottom))
-                Text(raw)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.75))
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                Spacer(minLength: 0)
+            if state.rewriting {
+                statusRow(icon: nil, title: L10n.s("overlay.rewrite")) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(LinearGradient(colors: [Theme.violet, Theme.pink], startPoint: .top, endPoint: .bottom))
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(LinearGradient(colors: [Theme.violet, Theme.pink], startPoint: .top, endPoint: .bottom))
+                    Text(raw)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                    Spacer(minLength: 0)
+                }
             }
         case .translating(let code):
             statusRow(icon: nil, title: "→ \(code.uppercased())") {
@@ -409,7 +451,7 @@ struct OverlayView: View {
             HStack(spacing: 8) {
                 Image(systemName: pasted ? "checkmark.circle.fill" : "doc.on.clipboard.fill")
                     .foregroundStyle(pasted ? .green : .orange)
-                Text(pasted ? "Eingefügt" : "Kopiert – ⌘V")
+                Text(pasted ? L10n.s("overlay.inserted") : L10n.s("overlay.copied"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white)
                 Text(text)
@@ -457,9 +499,9 @@ struct OverlayView: View {
             .buttonStyle(.plain)
             .disabled(!state.engineReady)
             .opacity(state.engineReady ? 1 : 0.45)
-            .help("Diktieren")
+            .help(L10n.s("overlay.dictate"))
 
-            Text("fn")
+            Text(state.config.resolvedHotkey.symbol)
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.32))
 
@@ -488,7 +530,7 @@ struct OverlayView: View {
                 )
             }
             .buttonStyle(.plain)
-            .help("Markierung übersetzen")
+            .help(L10n.s("overlay.translateHelp"))
 
             Spacer(minLength: 2)
 
@@ -496,7 +538,7 @@ struct OverlayView: View {
                 state.widgetTranslateOpen = false
                 state.openMain(.settings)
             }
-            .help("Einstellungen")
+            .help(L10n.s("menu.settings"))
         }
     }
 
@@ -530,7 +572,7 @@ struct TranslateMenuCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Übersetzen")
+                Text(L10n.s("overlay.translate"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.55))
                 Spacer()
@@ -547,7 +589,7 @@ struct TranslateMenuCard: View {
             .padding(.top, 10)
             .padding(.bottom, 6)
 
-            Text("Markierten Text ersetzen")
+            Text(L10n.s("overlay.replace"))
                 .font(.system(size: 10))
                 .foregroundStyle(.white.opacity(0.35))
                 .padding(.horizontal, 12)
@@ -573,7 +615,7 @@ struct TranslateMenuCard: View {
                                     .font(.system(size: 12.5, weight: isNative ? .semibold : .medium))
                                     .foregroundStyle(.white.opacity(isNative ? 0.95 : 0.88))
                                 if isNative {
-                                    Text("Meine Sprache")
+                                    Text(L10n.s("overlay.mine"))
                                         .font(.system(size: 9.5, weight: .medium))
                                         .foregroundStyle(.white.opacity(0.38))
                                 }

@@ -31,12 +31,12 @@ struct HistoryRow: View {
                 }
                 .buttonStyle(IconButtonStyle())
                 .opacity(hovering || copied ? 1 : 0)
-                .help("Kopieren")
+                .help(L10n.s("history.copyHelp"))
             }
             if expanded {
                 VStack(alignment: .leading, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Gesprochen")
+                        Text(L10n.s("history.spoken"))
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
                         Text(entry.raw)
@@ -48,13 +48,13 @@ struct HistoryRow: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.04)))
                     HStack(spacing: 8) {
-                        Button("Text kopieren", action: copy).buttonStyle(SoftButtonStyle())
-                        Button("Rohtext kopieren") { state.copy(entry.raw) }.buttonStyle(SoftButtonStyle())
+                        Button(L10n.s("history.copy"), action: copy).buttonStyle(SoftButtonStyle())
+                        Button(L10n.s("history.copyRaw")) { state.copy(entry.raw) }.buttonStyle(SoftButtonStyle())
                         Spacer()
                         Button(role: .destructive) {
                             withAnimation(.snappy) { state.deleteHistory(entry.id) }
                         } label: {
-                            Label("Löschen", systemImage: "trash")
+                            Label(L10n.s("history.remove"), systemImage: "trash")
                         }
                         .buttonStyle(SoftButtonStyle())
                         .foregroundStyle(.red)
@@ -90,11 +90,11 @@ struct HistoryRow: View {
             if entry.wasCommand == true {
                 Text("·")
                 Image(systemName: "wand.and.stars")
-                Text("umgeschrieben")
+                Text(L10n.s("history.rewritten"))
             }
             if mode != .compact {
                 Text("·")
-                Text(entry.words == 1 ? "1 Wort" : "\(entry.words) Wörter")
+                Text(entry.words == 1 ? L10n.s("history.wordOne") : L10n.s("history.words", entry.words))
             }
         }
         .font(.system(size: 11))

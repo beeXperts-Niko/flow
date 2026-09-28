@@ -7,8 +7,8 @@ enum RecorderError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noInput: return "Kein Mikrofon gefunden"
-        case .convert: return "Audio konnte nicht gewandelt werden"
+        case .noInput: return L10n.s("audio.noInput")
+        case .convert: return L10n.s("audio.convert")
         }
     }
 }

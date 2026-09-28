@@ -1,0 +1,35 @@
+---
+description: Flow version bumps and UI language files
+alwaysApply: true
+---
+
+# Version
+
+Product version is `CFBundleShortVersionString` in `packaging/Info.plist`.
+`CFBundleVersion` is an integer. Increment it by 1 on every version bump.
+
+On every user-visible change, before finishing:
+- bump the version
+- add a changelog entry on the product page, newest first: German in `site/index.html`, English keys in `site/i18n.js`
+- point every download link at `Flow-<version>.pkg` (header, hero, download, impressum)
+- bump the `i18n.js?v=` query when `site/i18n.js` changes
+
+Patch `1.1.x`: fix, copy, layout. No new capability.
+Minor `1.x.0`: a new capability. Reset patch to 0.
+Major `x.0.0`: only when the user explicitly asks. Reset minor and patch to 0.
+
+Do not bump `engine/pyproject.toml` for a UI-only change. A changed engine file retriggers the local Python setup.
+
+# UI language
+
+Do not hardcode user-visible SwiftUI or AppKit strings. Use `L10n.s("key")` or `L10n.s("key", args)`.
+Format placeholders are `String(format:)` with `%@`, `%ld` for `Int`, `%.1f` for `Double`.
+
+Catalog: `Languages/<bcp47>.json`, flat `[String: String]`. `en.json` is the key list and the fallback. `de.json` is German. Keys starting with `_` are ignored. Keep both files on the same key set.
+
+`scripts/build_app.sh` copies `Languages/*.json` into `Contents/Resources/Languages` and `packaging/*.lproj` into Resources.
+The app also reads `~/Library/Application Support/Flow/Languages`. Later directories override the same keys. Scan is at launch, not live. No language list in code. Filename is the code (`de.json`, `pt-BR.json`).
+
+Selection uses only `Locale.preferredLanguages.first`: full tag, then language. A hit wins. If that language is `de` and `de.json` exists, use German. Every other miss uses English. A missing key in the chosen file falls back to the English string, then the key.
+
+Permission dialogs are not in JSON. Put them in `packaging/<code>.lproj/InfoPlist.strings`. `CFBundleDevelopmentRegion` stays `en`, so a system language without an lproj gets English.

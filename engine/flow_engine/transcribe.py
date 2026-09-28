@@ -50,7 +50,12 @@ def transcribe_wav(
         "path_or_hf_repo": model_id,
         "verbose": False,
         "condition_on_previous_text": False,
-        "temperature": (0.0, 0.2),
+        # One greedy pass. A temperature ladder decodes the clip again when the
+        # first pass looks uncertain, which is the pause after the words are known.
+        # mlx-whisper has no beam search: any beam_size, including 1, raises
+        # NotImplementedError. Leaving it unset keeps the greedy decoder.
+        "temperature": 0.0,
+        "without_timestamps": True,
         "word_timestamps": False,
     }
     if language and language != "auto":

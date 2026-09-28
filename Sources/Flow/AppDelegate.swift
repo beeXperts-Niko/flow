@@ -10,15 +10,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let hotkeys = HotkeyMonitor()
     private let recorder = AudioRecorder()
     private let inserter = TextInserter()
+    private lazy var dictionaryLearner = DictionaryLearner(inserter: inserter)
     private let engine = SpeechEngine()
     private var overlay: OverlayController?
     private var mainWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var job: Task<Void, Never>?
+    private var dictationGeneration = 0
+    /// Reads the selection while the user is still speaking, so stop does not block on accessibility.
+    private var selectionTask: Task<String?, Never>?
     private var listenStarted = Date()
     private var ticker: Timer?
     private var permissionTimer: Timer?
     private var resetWork: DispatchWorkItem?
+    private var silenceWork: DispatchWorkItem?
     private var cancellables = Set<AnyCancellable>()
     private var correctionLookup: Task<Void, Never>?
     private var correctionLookupKey: String?
@@ -27,12 +32,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var frontObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        OutputSilence.recover()
         overlay = OverlayController(state: state)
         installEditMenu()
         setupStatusItem()
         wireState()
 
         hotkeys.hotkey = state.config.resolvedHotkey
+        hotkeys.onPress = { [weak self] in self?.dismissTransient() }
         hotkeys.onHoldStart = { [weak self] in self?.beginListening(handsFree: false) }
         hotkeys.onHoldEnd = { [weak self] in
             guard let self, self.state.phase == .listening, !self.state.handsFree else { return }
@@ -56,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.state.polishAvailable = self.engine.polishAvailable
             }
             if self.state.engineStatus != self.engine.statusText { self.state.engineStatus = self.engine.statusText }
+            if self.state.engineLoading != self.engine.statusIsLoading { self.state.engineLoading = self.engine.statusIsLoading }
         }
         engine.start()
         observeFrontApp()
@@ -93,25 +101,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         main.addItem(appItem)
         let appMenu = NSMenu()
         appItem.submenu = appMenu
-        appMenu.addItem(withTitle: "Flow ausblenden", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        appMenu.addItem(withTitle: "Flow beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: L10n.s("edit.hide"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: L10n.s("edit.quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         let editItem = NSMenuItem()
         main.addItem(editItem)
-        let edit = NSMenu(title: "Bearbeiten")
+        let edit = NSMenu(title: L10n.s("edit.menu"))
         editItem.submenu = edit
-        edit.addItem(withTitle: "Widerrufen", action: Selector(("undo:")), keyEquivalent: "z")
-        edit.addItem(withTitle: "Wiederholen", action: Selector(("redo:")), keyEquivalent: "Z")
+        edit.addItem(withTitle: L10n.s("edit.undo"), action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: L10n.s("edit.redo"), action: Selector(("redo:")), keyEquivalent: "Z")
         edit.addItem(.separator())
-        edit.addItem(withTitle: "Ausschneiden", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: "Kopieren", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "Einfügen", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: "Alles auswählen", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(withTitle: L10n.s("edit.cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: L10n.s("edit.copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: L10n.s("edit.paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: L10n.s("edit.selectAll"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
 
         NSApp.mainMenu = main
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        releaseSilence()
         hotkeys.stop()
         ticker?.invalidate()
         permissionTimer?.invalidate()
@@ -158,7 +167,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func refreshCorrectionModel(_ key: String) {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard state.config.correctsWithOpenAI, !trimmed.isEmpty else {
+        let base = state.config.resolvedCorrectionBaseURL
+        let custom = state.config.usesCustomCorrectionAPI
+        guard state.config.correctsWithOpenAI, custom || !trimmed.isEmpty else {
             correctionGeneration += 1
             correctionLookup?.cancel()
             correctionLookupKey = nil
@@ -166,8 +177,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             state.correctionModels = []
             return
         }
-        if correctionLookupKey == trimmed, !state.correctionModel.isEmpty { return }
-        correctionLookupKey = trimmed
+        let token = "\(base)\n\(trimmed)"
+        if correctionLookupKey == token, !state.correctionModel.isEmpty { return }
+        correctionLookupKey = token
         correctionGeneration += 1
         let generation = correctionGeneration
         let port = state.config.port
@@ -175,7 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         correctionLookup = Task { [weak self] in
             guard let self else { return }
             do {
-                let catalog = try await self.engine.correctionModel(apiKey: trimmed, port: port)
+                let catalog = try await self.engine.correctionModel(apiKey: trimmed, baseURL: base, port: port)
                 await MainActor.run {
                     guard self.correctionGeneration == generation else { return }
                     self.state.correctionModel = catalog.model
@@ -221,9 +233,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if old.modelPath != new.modelPath || old.whisperModel != new.whisperModel || old.port != new.port {
             engine.restart()
         }
+        if old.othersAudio != new.othersAudio {
+            releaseSilence()
+            if state.phase == .listening {
+                scheduleSilence()
+            }
+        }
+        if old.learnEdits != new.learnEdits, !new.learnEdits {
+            dictionaryLearner.stop()
+        }
     }
 
     // MARK: Dictation
+
+    private func scheduleSilence() {
+        silenceWork?.cancel()
+        let mode = state.config.othersAudioMode
+        guard mode != .off, state.phase == .listening else {
+            OutputSilence.end()
+            return
+        }
+        let delay: TimeInterval = state.config.playSounds ? 0.18 : 0
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.state.phase == .listening else { return }
+            let mode = self.state.config.othersAudioMode
+            guard mode != .off else { return }
+            OutputSilence.begin(mode)
+        }
+        silenceWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func releaseSilence() {
+        silenceWork?.cancel()
+        silenceWork = nil
+        OutputSilence.end()
+    }
+
+    /// The confirmation banner swallows the next hold if it stays up. Drop it as soon as Fn goes down.
+    private func dismissTransient() {
+        switch state.phase {
+        case .done, .notice, .failed:
+            show(.idle)
+        default:
+            break
+        }
+    }
 
     private func show(_ phase: Phase, resetAfter delay: TimeInterval? = nil) {
         resetWork?.cancel()
@@ -235,9 +290,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func beginListening(handsFree: Bool) {
-        guard !state.isBusy else { return }
+        if case .listening = state.phase { return }
         guard engine.ready else {
-            show(.notice("Modell wird noch geladen…"), resetAfter: 1.8)
+            show(.notice(L10n.s("notice.loading")), resetAfter: 1.8)
             return
         }
         let microphone = Permissions.microphoneStatus()
@@ -251,12 +306,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         guard microphone == .authorized else {
-            show(.failed("Mikrofon ist nicht erlaubt"), resetAfter: 2.2)
+            show(.failed(L10n.s("notice.micDenied")), resetAfter: 2.2)
             showMain(.settings)
             return
         }
         // Ohne Bedienungshilfen: Aufnahme vom Widget geht, Einfügen wird zur Zwischenablage.
         // Die globale Taste braucht Bedienungshilfen – die prüft der HotkeyMonitor selbst.
+        job?.cancel()
+        selectionTask?.cancel()
+        selectionTask = nil
+        state.rewriting = false
+        dictationGeneration += 1
         dictationApp = FrontApp.current()
         if let dictationApp { state.rememberApp(dictationApp) }
         engine.prewarm(port: state.config.port)
@@ -266,6 +326,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             show(.failed(error.localizedDescription), resetAfter: 2.5)
             return
         }
+        startSelectionCapture()
+        dictionaryLearner.stop()
         popover.performClose(nil)
         state.handsFree = handsFree
         state.resetLevels()
@@ -273,6 +335,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         listenStarted = Date()
         show(.listening)
         if state.config.playSounds { NSSound(named: "Tink")?.play() }
+        scheduleSilence()
         ticker?.invalidate()
         ticker = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self, self.state.phase == .listening else { return }
@@ -280,10 +343,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    private func startSelectionCapture() {
+        selectionTask?.cancel()
+        guard state.config.commandMode, engine.polishAvailable else {
+            selectionTask = nil
+            return
+        }
+        let inserter = self.inserter
+        selectionTask = Task {
+            await inserter.captureSelection()
+        }
+    }
+
     private func toggleHandsFree() {
         if state.phase == .listening {
             stopAndProcess()
-        } else if !state.isBusy {
+        } else {
             beginListening(handsFree: true)
         }
     }
@@ -291,13 +366,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func cancel() {
         switch state.phase {
         case .listening:
+            releaseSilence()
+            selectionTask?.cancel()
+            selectionTask = nil
             _ = recorder.stop()
             ticker?.invalidate()
             state.handsFree = false
-            show(.notice("Abgebrochen"), resetAfter: 0.9)
+            show(.notice(L10n.s("notice.cancelled")), resetAfter: 0.9)
         case .transcribing, .polishing, .translating:
             job?.cancel()
-            show(.notice("Abgebrochen"), resetAfter: 0.9)
+            selectionTask?.cancel()
+            selectionTask = nil
+            state.rewriting = false
+            show(.notice(L10n.s("notice.cancelled")), resetAfter: 0.9)
         default:
             break
         }
@@ -306,47 +387,74 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func stopAndProcess() {
         guard state.phase == .listening else { return }
         Timing.begin("---- recording stopped")
+        releaseSilence()
         let wav = recorder.stop()
         let duration = Date().timeIntervalSince(listenStarted)
         state.handsFree = false
         ticker?.invalidate()
         if state.config.playSounds { NSSound(named: "Pop")?.play() }
         guard let wav else {
-            show(.notice("Nichts gehört"), resetAfter: 1.4)
+            selectionTask?.cancel()
+            selectionTask = nil
+            show(.notice(L10n.s("notice.nothingHeard")), resetAfter: 1.4)
             return
         }
         let modelAvailable = engine.polishAvailable
-        let selection = state.config.commandMode && modelAvailable ? inserter.selectedText() : nil
+        let commandMode = state.config.commandMode && modelAvailable
+        let capture = selectionTask
+        selectionTask = nil
+        if !commandMode { capture?.cancel() }
         let front = FrontApp.current() ?? dictationApp
         if let front { state.rememberApp(front) }
         let appName = front?.name ?? inserter.frontmostAppName()
         var snapshot = state.config
         if let front { snapshot.style = state.effectiveStyle(for: front) }
         if !modelAvailable { snapshot.autoCorrect = false }
-        Timing.mark("selection read (\(selection == nil ? "none" : "\(selection!.count) chars")), app=\(appName ?? "?"), style=\(snapshot.style)")
         show(.transcribing)
+        let generation = dictationGeneration
 
         job = Task { [weak self] in
             guard let self else { return }
+            let selectionLogged = Task { () -> String? in
+                let value: String?
+                if commandMode, let capture {
+                    value = await capture.value
+                } else {
+                    value = nil
+                }
+                let detail = value == nil ? "none" : "\(value!.count) chars"
+                Timing.mark("selection read (\(detail)), app=\(appName ?? "?"), style=\(snapshot.style)")
+                return value
+            }
             do {
                 let raw = try await self.engine.transcribe(wav: wav, language: snapshot.language, port: snapshot.port)
                 Timing.mark("whisper done (autoCorrect=\(snapshot.autoCorrect))")
-                if Task.isCancelled { return }
+                if Task.isCancelled || generation != self.dictationGeneration { return }
                 let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                let selection = await selectionLogged.value
                 guard !trimmed.isEmpty else {
-                    await MainActor.run { self.show(.notice("Nichts erkannt"), resetAfter: 1.4) }
+                    await MainActor.run { self.show(.notice(L10n.s("notice.nothingRecognized")), resetAfter: 1.4) }
                     return
                 }
 
                 // Nur Whisper: direkt einfügen, kein Sprachmodell.
                 if !snapshot.autoCorrect && selection == nil {
                     await MainActor.run {
+                        guard generation == self.dictationGeneration else { return }
                         Timing.mark("main thread reached")
                         self.deliver(text: trimmed, raw: trimmed, duration: duration, app: appName, command: false)
                         self.inserter.logWhenLanded(trimmed)
                     }
                     return
                 }
+
+                // Remote correction starts now, so the round trip overlaps the paste.
+                // A local model waits until the paste has landed, otherwise it occupies the GPU.
+                let remote = snapshot.polishProvider != "local"
+                let polishTask: Task<String, Error>? = remote
+                    ? Task { try await self.engine.polish(raw: trimmed, selection: selection, config: snapshot) }
+                    : nil
+                if polishTask != nil { Timing.mark("polish request sent") }
 
                 // Sofort einfügen – außer bei Bearbeitungsbefehl auf Markierung.
                 let earlyResult: InsertResult?
@@ -360,39 +468,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     }
                 } else {
                     earlyResult = nil
-                    await MainActor.run { self.show(.polishing(raw: trimmed)) }
+                    await MainActor.run {
+                        guard generation == self.dictationGeneration else { return }
+                        self.state.rewriting = true
+                        self.show(.polishing(raw: trimmed))
+                    }
+                }
+                guard !Task.isCancelled, generation == self.dictationGeneration else {
+                    polishTask?.cancel()
+                    return
                 }
 
-                // Let the target app render the paste before the model saturates the GPU.
-                if earlyResult != nil {
-                    try? await Task.sleep(nanoseconds: 150_000_000)
+                let activePolish: Task<String, Error>
+                if let polishTask {
+                    activePolish = polishTask
+                } else {
+                    if earlyResult != nil {
+                        try? await Task.sleep(nanoseconds: 40_000_000)
+                    }
+                    Timing.mark("polish request sent")
+                    activePolish = Task { try await self.engine.polish(raw: trimmed, selection: selection, config: snapshot) }
                 }
-                Timing.mark("polish request sent")
+
                 var polishedText = trimmed
                 var polishError: String?
                 do {
-                    let polished = try await self.engine.polish(raw: trimmed, selection: selection, config: snapshot)
+                    let polished = try await activePolish.value
                     let clean = polished.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !clean.isEmpty { polishedText = clean }
                 } catch {
-                    if Task.isCancelled { return }
+                    if Task.isCancelled || generation != self.dictationGeneration { return }
                     polishError = error.localizedDescription
                 }
-                if Task.isCancelled { return }
+                if Task.isCancelled || generation != self.dictationGeneration { return }
                 let final = polishedText
                 let correctionError = polishError
 
                 await MainActor.run {
+                    guard generation == self.dictationGeneration else { return }
                     if let early = earlyResult {
-                        if final != trimmed {
-                            if early.pasted {
-                                // If the raw text can't be verified at the caret, keep it rather than
-                                // risk a second insert; the corrected text stays in the history.
-                                _ = self.inserter.replacePreviousInsert(raw: trimmed, with: final)
-                            } else {
-                                self.inserter.copyToClipboard(final)
-                            }
-                        } else if early.keptOnClipboard {
+                        var landed = final
+                        if final != trimmed, early.pasted,
+                           !self.inserter.replacePreviousInsert(raw: trimmed, with: final) {
+                            landed = trimmed
+                        } else if final != trimmed, !early.pasted {
+                            self.inserter.copyToClipboard(final)
+                        } else if final == trimmed, early.keptOnClipboard {
                             self.inserter.copyToClipboard(final)
                         }
                         self.finishDeliver(
@@ -401,7 +522,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             duration: duration,
                             app: appName,
                             command: false,
-                            pasted: early.pasted
+                            pasted: early.pasted,
+                            fieldText: early.pasted ? landed : nil
+                        )
+                    } else if correctionError != nil || final == trimmed {
+                        self.state.rewriting = false
+                        if let correctionError {
+                            self.show(.failed(correctionError), resetAfter: 3.2)
+                        } else {
+                            self.show(.notice(L10n.s("notice.commandFailed")), resetAfter: 2.4)
+                        }
+                    } else if Self.rewriteCollapsed(result: final, command: trimmed) {
+                        let result = self.inserter.insert(trimmed)
+                        self.finishDeliver(
+                            text: trimmed,
+                            raw: trimmed,
+                            duration: duration,
+                            app: appName,
+                            command: false,
+                            pasted: result.pasted,
+                            fieldText: result.pasted ? trimmed : nil
                         )
                     } else {
                         let result = self.inserter.insert(final)
@@ -411,10 +551,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             duration: duration,
                             app: appName,
                             command: true,
-                            pasted: result.pasted
+                            pasted: result.pasted,
+                            fieldText: result.pasted ? final : nil
                         )
                     }
-                    if let correctionError {
+                    if let correctionError, earlyResult != nil {
                         self.show(.notice(correctionError), resetAfter: 3.4)
                     }
                 }
@@ -428,18 +569,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func translateSelection(to languageId: String) {
         guard !state.isBusy else { return }
         guard engine.ready else {
-            show(.notice("Modell wird noch geladen…"), resetAfter: 1.6)
+            show(.notice(L10n.s("notice.loading")), resetAfter: 1.6)
             return
         }
         guard engine.polishAvailable else {
-            let hint = state.config.correctsWithOpenAI
-                ? "Übersetzen braucht einen OpenAI-Schlüssel"
-                : "Übersetzen braucht das Sprachmodell"
+            let hint = state.config.usesCustomCorrectionAPI
+                ? L10n.s("notice.translateNeedsModel")
+                : state.config.correctsWithOpenAI
+                    ? L10n.s("notice.translateNeedsKey")
+                    : L10n.s("notice.translateNeedsModel")
             show(.notice(hint), resetAfter: 2.2)
-            return
-        }
-        guard let selection = inserter.selectedText(), !selection.isEmpty else {
-            show(.notice("Zuerst Text markieren"), resetAfter: 1.6)
             return
         }
         let lang = TranslateLanguage.named(languageId)
@@ -450,6 +589,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         job = Task { [weak self] in
             guard let self else { return }
+            guard let selection = await self.inserter.captureSelection(), !selection.isEmpty else {
+                await MainActor.run { self.show(.notice(L10n.s("notice.selectFirst")), resetAfter: 1.6) }
+                return
+            }
             do {
                 let translated = try await self.engine.polish(
                     raw: selection,
@@ -460,7 +603,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if Task.isCancelled { return }
                 let text = translated.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else {
-                    await MainActor.run { self.show(.failed("Keine Übersetzung"), resetAfter: 2) }
+                    await MainActor.run { self.show(.failed(L10n.s("notice.noTranslation")), resetAfter: 2) }
                     return
                 }
                 await MainActor.run {
@@ -476,7 +619,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     ))
                     self.show(
                         .done(text: text, pasted: result.pasted),
-                        resetAfter: result.pasted ? 1.6 : 2.8
+                        resetAfter: result.pasted ? 0.85 : 2.2
                     )
                 }
             } catch {
@@ -486,14 +629,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    /// A long instruction that comes back as a word already inside that instruction
+    /// is a failed rewrite. The spoken sentence is what the user meant to insert.
+    private static func rewriteCollapsed(result: String, command: String) -> Bool {
+        let resultWords = result.split { $0.isWhitespace }
+        let commandWords = command.split { $0.isWhitespace }
+        guard resultWords.count <= 2, commandWords.count >= 10 else { return false }
+        return command.range(of: result, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+    }
+
     private func finishDeliver(
         text: String,
         raw: String,
         duration: TimeInterval,
         app: String?,
         command: Bool,
-        pasted: Bool
+        pasted: Bool,
+        fieldText: String? = nil
     ) {
+        state.rewriting = false
         state.addHistory(HistoryEntry(
             id: UUID(),
             date: Date(),
@@ -503,12 +657,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             app: app,
             wasCommand: command
         ))
-        show(.done(text: text, pasted: pasted), resetAfter: pasted ? 1.5 : 2.8)
+        show(.done(text: text, pasted: pasted), resetAfter: pasted ? 0.85 : 2.2)
+        guard let fieldText, state.config.learnEdits else { return }
+        dictionaryLearner.watch(inserted: fieldText) { [weak self] items in
+            self?.applyLearned(items)
+        }
+    }
+
+    private func applyLearned(_ learned: [DictionaryItem]) {
+        var items = DictionaryItem.parse(state.config.dictionary)
+        var added: [DictionaryItem] = []
+        for item in learned {
+            let exists = items.contains {
+                $0.term.caseInsensitiveCompare(item.term) == .orderedSame
+                    && $0.heardAs.caseInsensitiveCompare(item.heardAs) == .orderedSame
+            }
+            guard !exists else { continue }
+            items.insert(item, at: 0)
+            added.append(item)
+        }
+        guard !added.isEmpty else { return }
+        state.config.dictionary = DictionaryItem.serialize(items)
+        let summary = added.prefix(3).map { item in
+            item.heardAs.isEmpty ? item.term : "\(item.heardAs) → \(item.term)"
+        }.joined(separator: ", ")
+        switch state.phase {
+        case .listening, .transcribing, .polishing, .translating:
+            break
+        default:
+            show(.notice(L10n.s("dictionary.learned", summary)), resetAfter: 2.4)
+        }
     }
 
     private func deliver(text: String, raw: String, duration: TimeInterval, app: String?, command: Bool) {
         let result = inserter.insert(text)
-        finishDeliver(text: text, raw: raw, duration: duration, app: app, command: command, pasted: result.pasted)
+        finishDeliver(
+            text: text,
+            raw: raw,
+            duration: duration,
+            app: app,
+            command: command,
+            pasted: result.pasted,
+            fieldText: result.pasted ? text : nil
+        )
     }
 
     // MARK: Windows
@@ -596,7 +787,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            show(.failed("Login-Start: \(error.localizedDescription)"), resetAfter: 3)
+            show(.failed(L10n.s("notice.login", error.localizedDescription)), resetAfter: 3)
         }
     }
 
@@ -606,8 +797,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         var tint: NSColor?
         switch phase {
         case .listening:
-            name = "mic.fill"
-            tint = .systemRed
+            name = "waveform"
+            tint = .systemOrange
         case .transcribing, .polishing, .translating:
             name = "ellipsis.circle"
         default:

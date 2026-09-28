@@ -8,6 +8,7 @@ from flow_engine.openai_polish import (
     complete,
     error_message,
     message_text,
+    normalize_base_url,
     rank_models,
     reset_model_cache,
     resolve_model,
@@ -193,6 +194,49 @@ class OpenAIPolishTests(unittest.TestCase):
         text = complete([{"role": "user", "content": "x"}], "gpt-5.6-luna", "secret-key", 40, opener=opener)
         self.assertEqual(text, "Klar.")
         self.assertEqual(calls["n"], 2)
+
+    def test_custom_base_posts_there_without_a_key(self):
+        def opener(request, timeout):
+            self.assertEqual(request.full_url, "http://127.0.0.1:11434/v1/chat/completions")
+            self.assertIsNone(request.get_header("Authorization"))
+            self.assertEqual(timeout, 90)
+            payload = json.loads(request.data)
+            self.assertEqual(payload["model"], "llama3.2")
+            self.assertEqual(payload["max_tokens"], 40)
+            self.assertNotIn("max_completion_tokens", payload)
+            self.assertNotIn("reasoning_effort", payload)
+            return _Body(b'{"choices":[{"message":{"content":"Morgen."}}]}')
+
+        text = complete(
+            [{"role": "user", "content": "x"}],
+            "llama3.2",
+            "",
+            40,
+            opener=opener,
+            base_url="http://127.0.0.1:11434/v1/",
+        )
+        self.assertEqual(text, "Morgen.")
+
+    def test_custom_catalog_lists_non_gpt_models(self):
+        def opener(request, timeout):
+            self.assertEqual(request.full_url, "http://127.0.0.1:1234/v1/models")
+            body = json.dumps({"data": [_model("nomic-embed-text"), _model("qwen2.5"), _model("llama3.2")]}).encode()
+            return _Body(body)
+
+        self.assertEqual(
+            resolve_model("", opener=opener, now=10, base_url="http://127.0.0.1:1234"),
+            "qwen2.5",
+        )
+
+    def test_normalize_base_url_strips_the_endpoint_and_adds_v1(self):
+        self.assertEqual(normalize_base_url(""), "https://api.openai.com/v1")
+        self.assertEqual(
+            normalize_base_url("https://api.openai.com/v1/chat/completions"),
+            "https://api.openai.com/v1",
+        )
+        self.assertEqual(normalize_base_url("http://127.0.0.1:11434"), "http://127.0.0.1:11434/v1")
+        with self.assertRaisesRegex(RuntimeError, "http"):
+            normalize_base_url("file:///tmp/model")
 
 
 if __name__ == "__main__":

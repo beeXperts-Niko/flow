@@ -28,7 +28,7 @@ struct OnboardingView: View {
 
             HStack {
                 if step != .welcome {
-                    Button("Zurück") { go(-1) }.buttonStyle(SoftButtonStyle())
+                    Button(L10n.s("onboarding.back")) { go(-1) }.buttonStyle(SoftButtonStyle())
                 }
                 Spacer()
                 HStack(spacing: 6) {
@@ -69,21 +69,25 @@ struct OnboardingView: View {
             VStack(spacing: 22) {
                 FlowMark(size: 84)
                 VStack(spacing: 8) {
-                    Text("Willkommen bei Flow")
+                    Text(L10n.s("onboarding.welcome"))
                         .font(.system(size: 30, weight: .bold, design: .rounded))
-                    Text(state.config.correctsWithOpenAI
-                         ? "Sprich natürlich. Flow schreibt sauberen Text in jede App.\nWhisper hört auf diesem Mac, OpenAI formuliert."
-                         : "Sprich natürlich. Flow schreibt sauberen Text in jede App –\nkomplett lokal mit Whisper und Qwen.")
+                    Text(state.config.usesCustomCorrectionAPI
+                         ? L10n.s("onboarding.welcome.custom")
+                         : (state.config.correctsWithOpenAI
+                            ? L10n.s("onboarding.welcome.on")
+                            : L10n.s("onboarding.welcome.off")))
                         .font(.system(size: 14))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 VStack(alignment: .leading, spacing: 14) {
-                    feature("bolt.fill", "Dreimal schneller als Tippen", "Halte eine Taste, sprich, lass los.")
-                    feature("sparkles", "Formuliert automatisch", "Füllwörter raus, Zeichensetzung rein, passender Stil.")
-                    state.config.correctsWithOpenAI
-                        ? feature("lock.fill", "Aufnahme bleibt hier", "Nur der erkannte Text geht zur Korrektur an OpenAI, mit deinem Schlüssel.")
-                        : feature("lock.fill", "Privat", "Audio und Text verlassen deinen Mac nie.")
+                    feature("bolt.fill", L10n.s("onboarding.fast.title"), L10n.s("onboarding.fast.body"))
+                    feature("sparkles", L10n.s("onboarding.polish.title"), L10n.s("onboarding.polish.body"))
+                    state.config.usesCustomCorrectionAPI
+                        ? feature("lock.fill", L10n.s("onboarding.private.custom.title"), L10n.s("onboarding.private.custom.body"))
+                        : state.config.correctsWithOpenAI
+                            ? feature("lock.fill", L10n.s("onboarding.private.on.title"), L10n.s("onboarding.private.on.body"))
+                            : feature("lock.fill", L10n.s("onboarding.private.off.title"), L10n.s("onboarding.private.off.body"))
                 }
                 .padding(.top, 8)
             }
@@ -91,39 +95,39 @@ struct OnboardingView: View {
         case .microphone:
             permissionStep(
                 icon: "mic.fill",
-                title: "Mikrofon erlauben",
-                text: "Flow hört nur zu, solange du die Taste hältst. Die Aufnahme wird direkt auf diesem Mac verarbeitet.",
+                title: L10n.s("onboarding.mic.title"),
+                text: L10n.s("onboarding.mic.body"),
                 granted: state.micGranted,
-                button: "Mikrofon erlauben",
+                button: L10n.s("onboarding.mic.button"),
                 action: state.requestMicrophone,
                 note: nil
             )
         case .accessibility:
             permissionStep(
                 icon: "accessibility",
-                title: "Bedienungshilfen erlauben",
-                text: "Damit erkennt Flow die Diktiertaste in jeder App und fügt den Text an der Cursorposition ein.",
+                title: L10n.s("onboarding.ax.title"),
+                text: L10n.s("onboarding.ax.body"),
                 granted: state.axGranted,
-                button: "Systemeinstellungen öffnen",
+                button: L10n.s("onboarding.ax.button"),
                 action: state.openAccessibility,
-                note: "Schalte Flow in der Liste ein. Steht Flow schon drin, einmal aus- und wieder einschalten."
+                note: L10n.s("onboarding.ax.note")
             )
         case .tryIt:
             VStack(spacing: 20) {
                 VStack(spacing: 8) {
-                    Text("Probier es aus")
+                    Text(L10n.s("onboarding.try.title"))
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                     HStack(spacing: 8) {
-                        Text("Klick ins Feld, halte")
+                        Text(L10n.s("onboarding.try.hold"))
                         KeyCap(label: state.config.resolvedHotkey.symbol)
-                        Text("und sag etwas.")
+                        Text(L10n.s("onboarding.try.say"))
                     }
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                 }
                 ZStack(alignment: .topLeading) {
                     if sample.isEmpty {
-                        Text("„Ähm, erinnere mich bitte morgen um zehn an das Angebot für Müller.“")
+                        Text(L10n.s("onboarding.try.sample"))
                             .font(.system(size: 15))
                             .foregroundStyle(.tertiary)
                             .padding(.horizontal, 17)
@@ -147,8 +151,8 @@ struct OnboardingView: View {
                         text: state.engineState != .ready
                             ? state.engineStatus
                             : state.polishAvailable
-                                ? (state.config.correctsWithOpenAI ? "OpenAI ist bereit" : "Qwen ist bereit")
-                                : "Whisper ist bereit"
+                                ? (state.config.correctsWithOpenAI ? L10n.s("onboarding.openaiReady") : L10n.s("onboarding.qwenReady"))
+                                : L10n.s("onboarding.whisperReady")
                     )
                     if state.phase == .listening {
                         MirroredWaveform(levels: state.levels, bars: 15, color: Theme.violet)
@@ -205,7 +209,7 @@ struct OnboardingView: View {
                     .frame(maxWidth: 440)
             }
             if granted {
-                Label("Erlaubt", systemImage: "checkmark.circle.fill")
+                Label(L10n.s("common.allowed"), systemImage: "checkmark.circle.fill")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.green)
             } else {
@@ -224,9 +228,9 @@ struct OnboardingView: View {
 
     private var primaryTitle: String {
         switch step {
-        case .welcome: return "Los geht’s"
-        case .tryIt: return "Fertig"
-        default: return "Weiter"
+        case .welcome: return L10n.s("onboarding.start")
+        case .tryIt: return L10n.s("onboarding.done")
+        default: return L10n.s("onboarding.next")
         }
     }
 

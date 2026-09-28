@@ -214,10 +214,10 @@ extension Page where Accessory == EmptyView {
 }
 
 enum Fmt {
-    static let locale = Locale(identifier: "de_DE")
+    static var locale: Locale { L10n.locale }
 
     static func relative(_ date: Date) -> String {
-        if Date().timeIntervalSince(date) < 60 { return "gerade eben" }
+        if Date().timeIntervalSince(date) < 60 { return L10n.s("time.justNow") }
         let formatter = RelativeDateTimeFormatter()
         formatter.locale = locale
         formatter.unitsStyle = .short
@@ -230,8 +230,8 @@ enum Fmt {
 
     static func day(_ date: Date) -> String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "Heute" }
-        if calendar.isDateInYesterday(date) { return "Gestern" }
+        if calendar.isDateInToday(date) { return L10n.s("time.today") }
+        if calendar.isDateInYesterday(date) { return L10n.s("time.yesterday") }
         return date.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(locale))
     }
 
@@ -240,9 +240,9 @@ enum Fmt {
     }
 
     static func minutes(_ value: Double) -> String {
-        if value < 1 { return "< 1 Min" }
-        if value < 60 { return "\(Int(value.rounded())) Min" }
-        return String(format: "%.1f Std", value / 60).replacingOccurrences(of: ".", with: ",")
+        if value < 1 { return L10n.s("time.underMinute") }
+        if value < 60 { return L10n.s("time.minutes", Int(value.rounded())) }
+        return L10n.s("time.hours", value / 60)
     }
 
     static func clock(_ seconds: TimeInterval) -> String {

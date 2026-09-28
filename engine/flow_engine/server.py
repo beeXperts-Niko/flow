@@ -18,6 +18,7 @@ from flow_engine.polish import (
     clean_output,
     parse_dictionary,
     token_budget,
+    weighted_terms,
 )
 from flow_engine.transcribe import needs_warmup, transcribe_wav, warmup
 
@@ -115,12 +116,12 @@ class Engine:
             if not self.ready:
                 raise RuntimeError(self.error or "Modell wird noch geladen")
             config = read_config()
-            hints, _rules = parse_dictionary(config.get("dictionary") or "")
+            terms = weighted_terms(config.get("dictionary") or "")
             text, detected = transcribe_wav(
                 wav,
                 config.get("whisperModel") or DEFAULT_WHISPER,
                 language or config.get("language") or "auto",
-                ", ".join(hints),
+                ", ".join(terms),
             )
             self._last_touch = time.perf_counter()
             return {"text": text, "language": detected}
@@ -168,10 +169,13 @@ class Engine:
             started = time.perf_counter()
             if provider == "openai":
                 api_key = str(payload.get("apiKey") or "")
-                model = str(payload.get("resolvedModel") or "").strip() or resolve_model(api_key)
-                text = complete(messages, model, api_key, budget)
+                base_url = str(payload.get("baseURL") or "")
+                model = str(payload.get("resolvedModel") or "").strip() or resolve_model(
+                    api_key, base_url=base_url
+                )
+                text = complete(messages, model, api_key, budget, base_url=base_url)
                 elapsed = time.perf_counter() - started
-                print(f"OpenAI {model} in {elapsed:.1f}s", flush=True)
+                print(f"Korrektur {model} in {elapsed:.1f}s", flush=True)
             else:
                 if not self.polish_ready or self._model is None or self._processor is None:
                     raise RuntimeError(self.polish_error or "Sprachmodell nicht verfügbar")
@@ -306,7 +310,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/correction-model":
                 payload = json.loads(raw.decode("utf-8") or "{}")
-                recommended, models = model_catalog(str(payload.get("apiKey") or ""))
+                recommended, models = model_catalog(
+                    str(payload.get("apiKey") or ""),
+                    base_url=str(payload.get("baseURL") or ""),
+                )
                 self._send(200, {"model": recommended, "models": models})
                 return
             if not ENGINE.ready:
@@ -330,10 +337,13 @@ class Handler(BaseHTTPRequestHandler):
                 ).strip()
                 if provider == "openai":
                     requested = str(payload.get("openAIModel") or "").strip()
+                    base_url = str(payload.get("baseURL") or "")
                     if requested and requested != "auto":
                         payload["resolvedModel"] = requested
                     else:
-                        payload["resolvedModel"] = resolve_model(str(payload.get("apiKey") or ""))
+                        payload["resolvedModel"] = resolve_model(
+                            str(payload.get("apiKey") or ""), base_url=base_url
+                        )
                 self._send(200, call_model(ENGINE.polish, payload))
                 return
             self._send(404, {"error": "nicht gefunden"})

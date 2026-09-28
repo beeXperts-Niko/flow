@@ -13,12 +13,14 @@ Projektseite: <https://sinthex.de/flow/>
 
 - Aufnahme über die Fn-Taste, Doppeltipp für freies Sprechen, Esc bricht ab.
 - Erkennung mit Whisper lokal auf Apple Silicon. Audio verlässt den Mac dafür nicht.
-- Optional Korrektur mit dem eigenen OpenAI-Schlüssel. Der Schlüssel liegt im Schlüsselbund, nicht in einer Konfigurationsdatei und nicht in diesem Repository.
+- Optional Korrektur mit dem eigenen OpenAI-Schlüssel. Der Schlüssel liegt im Schlüsselbund, nicht in einer Konfigurationsdatei und nicht in diesem Repository. In den Einstellungen kann statt OpenAI eine andere OpenAI-kompatible Adresse stehen, auch ein lokales Modell. Der Schlüssel bleibt optional und im Schlüsselbund.
 - Das Korrekturmodell wird über den Schlüssel ermittelt. Flow empfiehlt das neueste schnelle Modell, ein anderes lässt sich fest einstellen.
 - Der Stil richtet sich nach dem vorderen Programm, zum Beispiel Coding in einer Entwicklungsumgebung und E-Mail in Mail. Pro Programm lässt sich der Stil ändern.
 - Der Text wird in das aktive Feld eingesetzt. Markierten Text kann man ansagen und umformulieren lassen.
 
 Flow ist eine Menüleisten-App für macOS 14 oder neuer, auf Apple Silicon.
+
+Die Oberfläche folgt der ersten Systemsprache. Die Amtssprachen Europas liegen als `Languages/<code>.json` bei, dazu regionale Amtssprachen wie Katalanisch, Baskisch, Gälisch und Rätoromanisch. Die Schlüssel stehen in `en.json`. Fehlt eine Sprache, bleibt Deutsch bei Deutsch und jede andere Sprache wird Englisch. Eine Datei im Ordner `~/Library/Application Support/Flow/Languages` ergänzt oder überschreibt dieselbe Sprache und wird beim nächsten Start gelesen. Fehlende Schlüssel fallen auf Englisch zurück.
 
 ## Lizenz
 
@@ -32,7 +34,7 @@ Flow baut auf anderen Open-Source-Projekten auf, vor allem mlx-whisper, MLX, mlx
 
 ## Privatsphäre
 
-Es gehören keine API-Schlüssel, Zertifikate, PKCS#12-Dateien oder Diktate in dieses Repository. Der OpenAI-Schlüssel bleibt im macOS-Schlüsselbund (`de.dietergeschaeft.Flow` / `openai-api-key`). Konfiguration und Verlauf liegen lokal unter `~/Library/Application Support/Flow/` und sind von Git ausgeschlossen.
+Es gehören keine API-Schlüssel, Zertifikate, PKCS#12-Dateien oder Diktate in dieses Repository. Der OpenAI-Schlüssel bleibt im macOS-Schlüsselbund (`de.sinthex.flow` / `openai-api-key`). Konfiguration und Verlauf liegen lokal unter `~/Library/Application Support/Flow/` und sind von Git ausgeschlossen.
 
 ## Bauen
 

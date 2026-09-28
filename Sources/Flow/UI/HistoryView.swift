@@ -6,14 +6,14 @@ struct HistoryView: View {
     @State private var confirmClear = false
 
     var body: some View {
-        Page(title: "Verlauf", subtitle: "Klick auf einen Eintrag für den Rohtext.") {
+        Page(title: L10n.s("history.title"), subtitle: L10n.s("history.subtitle")) {
             HStack(spacing: 10) {
                 SearchField(text: $query)
                 if !state.history.isEmpty {
                     Button(role: .destructive) {
                         confirmClear = true
                     } label: {
-                        Label("Verlauf leeren", systemImage: "trash")
+                        Label(L10n.s("history.clear"), systemImage: "trash")
                     }
                     .buttonStyle(SoftButtonStyle())
                 }
@@ -22,12 +22,12 @@ struct HistoryView: View {
             if state.history.isEmpty {
                 EmptyHint(
                     icon: "clock.arrow.circlepath",
-                    title: "Noch nichts im Verlauf",
-                    text: "Jedes Diktat landet hier, mit gesprochenem Rohtext und fertigem Ergebnis."
+                    title: L10n.s("history.emptyTitle"),
+                    text: L10n.s("history.emptyBody")
                 )
                 .card()
             } else if groups.isEmpty {
-                EmptyHint(icon: "magnifyingglass", title: "Keine Treffer", text: "Nichts passt zu „\(query)“.")
+                EmptyHint(icon: "magnifyingglass", title: L10n.s("history.noResults"), text: L10n.s("history.noResultsBody", query))
                     .card()
             } else {
                 ForEach(groups, id: \.day) { group in
@@ -45,12 +45,12 @@ struct HistoryView: View {
                 }
             }
         }
-        .confirmationDialog("Den gesamten Verlauf löschen?", isPresented: $confirmClear) {
-            Button("Verlauf löschen", role: .destructive) {
+        .confirmationDialog(L10n.s("history.deleteTitle"), isPresented: $confirmClear) {
+            Button(L10n.s("history.delete"), role: .destructive) {
                 withAnimation { state.clearHistory() }
             }
         } message: {
-            Text("Das lässt sich nicht rückgängig machen.")
+            Text(L10n.s("history.deleteBody"))
         }
     }
 
@@ -74,7 +74,7 @@ struct SearchField: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
-            TextField("Suchen", text: $text)
+            TextField(L10n.s("history.search"), text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
             if !text.isEmpty {

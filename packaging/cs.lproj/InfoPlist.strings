@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "Flow používá mikrofon k rozpoznání diktování přímo na tomto Macu.";
+"NSAppleEventsUsageDescription" = "Flow vkládá nadiktovaný text do aktivní aplikace.";

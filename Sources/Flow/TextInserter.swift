@@ -1,6 +1,12 @@
 import ApplicationServices
 import Cocoa
 
+struct DictationAnchor {
+    let element: AXUIElement
+    let location: Int
+    let following: String
+}
+
 struct InsertResult {
     var pasted: Bool
     /// Text bleibt in der Zwischenablage (kein Textfeld / kein AX) – Nutzer kann ⌘V oder ⌘⇧V.
@@ -14,12 +20,31 @@ final class TextInserter {
 
     func selectedText() -> String? {
         guard let element = focusedElement() else { return nil }
-        var value: CFTypeRef?
-        let error = AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &value)
-        guard error == .success, let text = value as? String else { return nil }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed.count <= 20_000 else { return nil }
-        return text
+        return accepted(copyString(element, kAXSelectedTextAttribute as CFString))
+    }
+
+    /// Accessibility first. A copy keystroke only when no element could say whether a selection exists.
+    /// Editors that copy the current line on ⌘C with an empty caret stay on the accessibility answer.
+    func captureSelection() async -> String? {
+        if Task.isCancelled { return nil }
+        let probe = probeAccessibility()
+        if Task.isCancelled { return nil }
+        switch probe {
+        case .text(let text):
+            Timing.mark("selection via accessibility (\(text.count) chars)")
+            return text
+        case .none:
+            Timing.mark("selection confirmed empty")
+            return nil
+        case .unknown:
+            let copied = await copySelectionProbe()
+            if let copied {
+                Timing.mark("selection via copy (\(copied.count) chars)")
+            } else {
+                Timing.mark("selection copy found nothing")
+            }
+            return copied
+        }
     }
 
     func hasEditableFocus() -> Bool {
@@ -95,18 +120,59 @@ final class TextInserter {
 
     /// Diagnostics: logs when `raw` actually shows up before the caret of the focused field.
     func logWhenLanded(_ raw: String, attempt: Int = 0) {
-        guard Permissions.accessibilityGranted() else { return }
-        if let element = focusedElement(), rangeOfJustInserted(raw, in: element) != nil {
-            Timing.mark("text visible in target field")
-            return
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self, Permissions.accessibilityGranted() else { return }
+            if let element = self.focusedElement(), self.rangeOfJustInserted(raw, in: element) != nil {
+                Timing.mark("text visible in target field")
+                return
+            }
+            guard attempt < 40 else {
+                Timing.mark("text not verifiable in target field after 3s")
+                return
+            }
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.logWhenLanded(raw, attempt: attempt + 1)
+            }
         }
-        guard attempt < 60 else {
-            Timing.mark("text not verifiable in target field after 3s")
-            return
+    }
+
+    /// Where `inserted` currently sits, plus a short tail of the text that follows it.
+    func locateInsert(_ inserted: String) -> DictationAnchor? {
+        guard Permissions.accessibilityGranted(),
+              let element = focusedElement(),
+              let range = rangeOfJustInserted(inserted, in: element) else { return nil }
+        let tail = text(
+            in: CFRange(location: range.location + range.length, length: 24),
+            of: element
+        ) ?? ""
+        return DictationAnchor(element: element, location: range.location, following: tail)
+    }
+
+    /// The text that now occupies the inserted span. Nil when the field can no longer be read.
+    func text(at anchor: DictationAnchor, original: String) -> String? {
+        let originalLength = (original as NSString).length
+        guard originalLength > 0 else { return nil }
+        let followingLength = (anchor.following as NSString).length
+        let available = characterCount(anchor.element).map { max(0, $0 - anchor.location) }
+        let preferred = originalLength + 80 + followingLength
+        let length = min(preferred, available ?? preferred)
+        guard length > 0,
+              let chunk = text(in: CFRange(location: anchor.location, length: length), of: anchor.element)
+        else { return nil }
+        if anchor.following.isEmpty {
+            return chunk
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            self?.logWhenLanded(raw, attempt: attempt + 1)
-        }
+        guard let tail = chunk.range(of: anchor.following) else { return nil }
+        return String(chunk[..<tail.lowerBound])
+    }
+
+    private func characterCount(_ element: AXUIElement) -> Int? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &value) == .success
+        else { return nil }
+        if let number = value as? Int { return number }
+        if let number = value as? NSNumber { return number.intValue }
+        return nil
     }
 
     private func scheduleRestore(_ saved: [[NSPasteboard.PasteboardType: Data]]) {
@@ -172,13 +238,151 @@ final class TextInserter {
         pasteboard.setString(text, forType: .string)
     }
 
+    private enum SelectionProbe {
+        case text(String)
+        case none
+        case unknown
+    }
+
+    private func probeAccessibility() -> SelectionProbe {
+        guard Permissions.accessibilityGranted(), let root = focusedElement() else { return .unknown }
+        let deadline = Date().addingTimeInterval(1.1)
+        var elements = [root]
+        var ancestor = parent(of: root)
+        var hops = 0
+        while let current = ancestor, hops < 5, Date() < deadline {
+            elements.append(current)
+            ancestor = parent(of: current)
+            hops += 1
+        }
+        var queue = [root]
+        var seen = 0
+        while !queue.isEmpty, elements.count < 14, Date() < deadline {
+            let node = queue.removeFirst()
+            for child in children(of: node).prefix(6) {
+                elements.append(child)
+                queue.append(child)
+                seen += 1
+                if seen >= 12 || elements.count >= 14 { break }
+            }
+        }
+
+        var sawEmptyCaret = false
+        var sawPositiveRange = false
+        for element in elements {
+            if Date() >= deadline { break }
+            AXUIElementSetMessagingTimeout(element, 0.35)
+            if let text = accepted(copyString(element, kAXSelectedTextAttribute as CFString)) {
+                return .text(text)
+            }
+            if let text = accepted(webSelectedText(of: element)) {
+                return .text(text)
+            }
+            if let range = selectedRange(of: element) {
+                if range.length > 0 {
+                    sawPositiveRange = true
+                    if let text = accepted(text(in: range, of: element)) {
+                        return .text(text)
+                    }
+                } else if CFEqual(element, root) {
+                    sawEmptyCaret = true
+                }
+            }
+        }
+        if sawPositiveRange { return .unknown }
+        if sawEmptyCaret { return .none }
+        return .unknown
+    }
+
+    @MainActor
+    private func copySelectionProbe() -> String? {
+        guard !Task.isCancelled else { return nil }
+        restoreWork?.cancel()
+        let saved = pendingRestore ?? snapshot()
+        let board = NSPasteboard.general
+        let beforeCount = board.changeCount
+        post(key: 8, flags: .maskCommand)
+        let deadline = Date().addingTimeInterval(0.28)
+        var copied: String?
+        while Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
+            if board.changeCount != beforeCount {
+                copied = board.string(forType: .string)
+                break
+            }
+        }
+        restore(saved)
+        pendingRestore = nil
+        return accepted(copied)
+    }
+
+    private func accepted(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 20_000 else { return nil }
+        return text
+    }
+
+    private func copyString(_ element: AXUIElement, _ attribute: CFString) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success else { return nil }
+        return value as? String
+    }
+
+    private func parent(of element: AXUIElement) -> AXUIElement? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &value) == .success,
+              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        return (value as! AXUIElement)
+    }
+
+    private func children(of element: AXUIElement) -> [AXUIElement] {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value) == .success,
+              let value, CFGetTypeID(value) == CFArrayGetTypeID() else { return [] }
+        var result: [AXUIElement] = []
+        for item in value as! NSArray {
+            let cf = item as CFTypeRef
+            guard CFGetTypeID(cf) == AXUIElementGetTypeID() else { continue }
+            result.append(item as! AXUIElement)
+        }
+        return result
+    }
+
+    private func selectedRange(of element: AXUIElement) -> CFRange? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &value) == .success,
+              let value else { return nil }
+        let ax = value as! AXValue
+        guard AXValueGetType(ax) == .cfRange else { return nil }
+        var range = CFRange()
+        guard AXValueGetValue(ax, .cfRange, &range) else { return nil }
+        return range
+    }
+
+    private func webSelectedText(of element: AXUIElement) -> String? {
+        var marker: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, "AXSelectedTextMarkerRange" as CFString, &marker) == .success,
+              let marker else { return nil }
+        var value: CFTypeRef?
+        let error = AXUIElementCopyParameterizedAttributeValue(
+            element, "AXStringForTextMarkerRange" as CFString, marker, &value
+        )
+        guard error == .success else { return nil }
+        return value as? String
+    }
+
     private func focusedElement() -> AXUIElement? {
         let system = AXUIElementCreateSystemWide()
         var value: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &value)
         guard error == .success, let value else { return nil }
         guard CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
-        return (value as! AXUIElement)
+        let element = value as! AXUIElement
+        // The system element is capped at 0.25s. The focused element keeps the
+        // 6s default and would freeze the hotkey until it returns.
+        AXUIElementSetMessagingTimeout(element, 0.2)
+        return element
     }
 
     private func isEditable(_ element: AXUIElement) -> Bool {

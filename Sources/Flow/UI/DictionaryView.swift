@@ -2,39 +2,58 @@ import SwiftUI
 
 struct DictionaryView: View {
     @EnvironmentObject var state: AppState
-    @State private var term = ""
     @State private var heardAs = ""
-    @FocusState private var termFocused: Bool
+    @State private var term = ""
+    @FocusState private var heardFocused: Bool
 
     private var items: [DictionaryItem] { DictionaryItem.parse(state.config.dictionary) }
 
     var body: some View {
-        Page(title: "Wörterbuch", subtitle: "Namen, Marken und Fachbegriffe, die Flow immer richtig schreiben soll.") {
+        Page(title: L10n.s("dictionary.title"), subtitle: L10n.s("dictionary.subtitle")) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
-                    field(icon: "character.cursor.ibeam", placeholder: "Schreibweise, z. B. VEMA", text: $term)
-                        .focused($termFocused)
-                    field(icon: "ear", placeholder: "Wird erkannt als (optional)", text: $heardAs)
+                    field(icon: "ear", placeholder: L10n.s("dictionary.heardPlaceholder"), text: $heardAs)
+                        .focused($heardFocused)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                    field(icon: "character.cursor.ibeam", placeholder: L10n.s("dictionary.termPlaceholder"), text: $term)
                     Button {
                         add()
                     } label: {
-                        Label("Hinzufügen", systemImage: "plus")
+                        Label(L10n.s("dictionary.add"), systemImage: "plus")
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .disabled(term.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(heardAs.trimmingCharacters(in: .whitespaces).isEmpty
+                              && term.trimmingCharacters(in: .whitespaces).isEmpty)
                     .keyboardShortcut(.defaultAction)
                 }
                 HStack(alignment: .top, spacing: 18) {
                     explainer(
-                        icon: "text.badge.checkmark",
-                        title: "Nur Schreibweise",
-                        text: "Flow gibt den Begriff an Whisper und die Korrektur weiter."
+                        icon: "ear",
+                        title: L10n.s("dictionary.withHeard.title"),
+                        text: L10n.s("dictionary.withHeard.body")
                     )
                     explainer(
-                        icon: "arrow.left.arrow.right",
-                        title: "Mit Erkennung",
-                        text: "Was Whisper falsch hört, wird immer exakt ersetzt, z. B. „flow app“ → „Flow“."
+                        icon: "text.badge.checkmark",
+                        title: L10n.s("dictionary.spellingOnly.title"),
+                        text: L10n.s("dictionary.spellingOnly.body")
                     )
+                }
+                Divider()
+                HStack(alignment: .center, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L10n.s("dictionary.learn.title"))
+                            .font(.system(size: 13, weight: .medium))
+                        Text(L10n.s("dictionary.learn.detail"))
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 12)
+                    Toggle("", isOn: $state.config.learnEdits)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
                 }
             }
             .card()
@@ -42,13 +61,13 @@ struct DictionaryView: View {
             if items.isEmpty {
                 EmptyHint(
                     icon: "character.book.closed",
-                    title: "Noch keine Einträge",
-                    text: "Füge Namen von Kunden, Kollegen oder Produkten hinzu."
+                    title: L10n.s("dictionary.emptyTitle"),
+                    text: L10n.s("dictionary.emptyBody")
                 )
                 .card()
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(items.count) Einträge")
+                    Text(items.count == 1 ? L10n.s("dictionary.countOne") : L10n.s("dictionary.count", items.count))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 12)
@@ -95,18 +114,28 @@ struct DictionaryView: View {
     }
 
     private func add() {
-        let cleanTerm = term.trimmingCharacters(in: .whitespaces)
-        guard !cleanTerm.isEmpty else { return }
-        var current = items
         let cleanHeard = heardAs.trimmingCharacters(in: .whitespaces)
-        current.removeAll { $0.term.caseInsensitiveCompare(cleanTerm) == .orderedSame && $0.heardAs == cleanHeard }
-        current.insert(DictionaryItem(term: cleanTerm, heardAs: cleanHeard), at: 0)
+        let cleanTerm = term.trimmingCharacters(in: .whitespaces)
+        let entry: DictionaryItem
+        if cleanTerm.isEmpty {
+            guard !cleanHeard.isEmpty else { return }
+            entry = DictionaryItem(term: cleanHeard, heardAs: "")
+        } else if cleanHeard.isEmpty || cleanHeard == cleanTerm {
+            entry = DictionaryItem(term: cleanTerm, heardAs: "")
+        } else {
+            entry = DictionaryItem(term: cleanTerm, heardAs: cleanHeard)
+        }
+        var current = items
+        current.removeAll {
+            $0.term.caseInsensitiveCompare(entry.term) == .orderedSame && $0.heardAs == entry.heardAs
+        }
+        current.insert(entry, at: 0)
         withAnimation(.snappy) {
             state.config.dictionary = DictionaryItem.serialize(current)
         }
         term = ""
         heardAs = ""
-        termFocused = true
+        heardFocused = true
     }
 
     private func remove(_ item: DictionaryItem) {
@@ -124,20 +153,20 @@ private struct DictionaryRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
+            if !item.heardAs.isEmpty {
+                Text(item.heardAs)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.secondary)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
             Text(item.term)
                 .font(.system(size: 13, weight: .semibold))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .background(Capsule().fill(Theme.violet.opacity(0.12)))
                 .foregroundStyle(Theme.violet)
-            if !item.heardAs.isEmpty {
-                Image(systemName: "arrow.left")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-                Text("„\(item.heardAs)“")
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(.secondary)
-            }
             Spacer()
             Button(action: onDelete) {
                 Image(systemName: "xmark")
@@ -145,7 +174,7 @@ private struct DictionaryRow: View {
             }
             .buttonStyle(IconButtonStyle())
             .opacity(hovering ? 1 : 0)
-            .help("Entfernen")
+            .help(L10n.s("dictionary.remove"))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)

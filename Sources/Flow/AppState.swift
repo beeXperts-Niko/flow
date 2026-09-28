@@ -30,11 +30,11 @@ enum MainSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .home: return "Start"
-        case .history: return "Verlauf"
-        case .style: return "Stil"
-        case .dictionary: return "Wörterbuch"
-        case .settings: return "Einstellungen"
+        case .home: return L10n.s("nav.home")
+        case .history: return L10n.s("nav.history")
+        case .style: return L10n.s("nav.style")
+        case .dictionary: return L10n.s("nav.dictionary")
+        case .settings: return L10n.s("nav.settings")
         }
     }
 
@@ -53,6 +53,8 @@ final class AppState: ObservableObject {
     static let levelCount = 24
 
     @Published var phase: Phase = .idle
+    /// True while a spoken command is rewriting a selection, so the widget does not show the command itself.
+    @Published var rewriting = false
     @Published var levels: [CGFloat] = Array(repeating: 0, count: AppState.levelCount)
     @Published var elapsed: TimeInterval = 0
     @Published var handsFree = false
@@ -61,7 +63,8 @@ final class AppState: ObservableObject {
     @Published var correctionModel = ""
     @Published var correctionModels: [String] = []
     @Published var frontApp: FrontApp?
-    @Published var engineStatus = "Modell wird geladen…"
+    @Published var engineStatus = L10n.s("engine.loadingModel")
+    @Published var engineLoading = true
     @Published var micGranted = false
     @Published var axGranted = false
     @Published var widgetHovered = false
@@ -99,13 +102,12 @@ final class AppState: ObservableObject {
 
     var engineState: EngineState {
         if engineReady { return .ready }
-        let busy = engineStatus.contains("geladen") || engineStatus.contains("eingerichtet")
-        return busy ? .loading : .error
+        return engineLoading ? .loading : .error
     }
 
     var modelDisplayName: String {
-        let id = config.whisperModel.split(separator: "/").last.map(String.init) ?? "lokal"
-        return "Whisper · \(id)"
+        let id = config.whisperModel.split(separator: "/").last.map(String.init) ?? L10n.s("model.local")
+        return L10n.s("model.whisper", id)
     }
 
     func rememberApp(_ app: FrontApp) {

@@ -12,9 +12,9 @@ struct AccessibilityRepairCard: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.orange)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Bedienungshilfen reparieren")
+                    Text(L10n.s("ax.repair.title"))
                         .font(.system(size: 14, weight: .semibold))
-                    Text("Nach einem Update gilt der alte Schalter oft nicht mehr für die neue Flow-Version.")
+                    Text(L10n.s("ax.repair.body"))
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -22,9 +22,9 @@ struct AccessibilityRepairCard: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                repairStep(1, "Öffne Bedienungshilfen und suche Flow in der Liste.")
-                repairStep(2, "Schalter aus, kurz warten, wieder an – oder Flow entfernen und neu hinzufügen.")
-                repairStep(3, "Zurück zu Flow: Der Status unten wechselt auf „Erlaubt“.")
+                repairStep(1, L10n.s("ax.step1"))
+                repairStep(2, L10n.s("ax.step2"))
+                repairStep(3, L10n.s("ax.step3"))
             }
 
             HStack(spacing: 10) {
@@ -32,21 +32,21 @@ struct AccessibilityRepairCard: View {
                     waiting = true
                     state.openAccessibility()
                 } label: {
-                    Label("Systemeinstellungen öffnen", systemImage: "gearshape")
+                    Label(L10n.s("ax.openSettings"), systemImage: "gearshape")
                 }
                 .buttonStyle(PrimaryButtonStyle())
 
                 if waiting && !state.axGranted {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text("Warte auf Freigabe…")
+                        Text(L10n.s("ax.waiting"))
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     }
                 }
 
                 if state.axGranted {
-                    Label("Freigegeben", systemImage: "checkmark.circle.fill")
+                    Label(L10n.s("ax.granted"), systemImage: "checkmark.circle.fill")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.green)
                 }

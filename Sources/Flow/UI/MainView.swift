@@ -43,7 +43,7 @@ private struct Sidebar: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Flow")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
-                    Text("Lokal auf deinem Mac")
+                    Text(L10n.s("main.local"))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -115,7 +115,7 @@ private struct EngineCard: View {
                 Image(systemName: "cpu")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
-                Text("Engine")
+                Text(L10n.s("main.engine"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -124,7 +124,9 @@ private struct EngineCard: View {
             Text(state.modelDisplayName)
                 .font(.system(size: 11.5, weight: .medium))
                 .lineLimit(2)
-            Text(state.config.correctsWithOpenAI ? "Whisper lokal · Korrektur OpenAI" : "Whisper · MLX · lokal")
+            Text(state.config.usesCustomCorrectionAPI
+                 ? L10n.s("main.stack.custom")
+                 : (state.config.correctsWithOpenAI ? L10n.s("main.stack.on") : L10n.s("main.stack.off")))
                 .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
             if state.engineState == .error {
@@ -132,7 +134,7 @@ private struct EngineCard: View {
                     .font(.system(size: 10.5))
                     .foregroundStyle(.red)
                     .lineLimit(3)
-                Button("Neu starten") { state.reloadEngine() }
+                Button(L10n.s("settings.restart")) { state.reloadEngine() }
                     .buttonStyle(SoftButtonStyle())
             }
         }
@@ -145,9 +147,9 @@ private struct EngineCard: View {
 
     private var label: String {
         switch state.engineState {
-        case .ready: return "Bereit"
-        case .loading: return "Lädt"
-        case .error: return "Fehler"
+        case .ready: return L10n.s("status.ready")
+        case .loading: return L10n.s("status.loading")
+        case .error: return L10n.s("status.error")
         }
     }
 }
@@ -162,27 +164,27 @@ struct PermissionBanner: View {
                     .font(.system(size: 18))
                     .foregroundStyle(.orange)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Flow braucht noch Berechtigungen")
+                    Text(L10n.s("main.needsPermissions"))
                         .font(.system(size: 14, weight: .semibold))
-                    Text("Ohne diese kann Flow nicht zuhören oder Text einfügen.")
+                    Text(L10n.s("main.needsPermissionsBody"))
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
             }
             PermissionRow(
-                title: "Mikrofon",
-                detail: "Damit Flow deine Stimme hört.",
+                title: L10n.s("common.mic"),
+                detail: L10n.s("settings.mic.detail"),
                 icon: "mic.fill",
                 granted: state.micGranted,
                 action: state.requestMicrophone
             )
             PermissionRow(
-                title: "Bedienungshilfen",
-                detail: "Für die globale Taste und das Einfügen. Ist Flow schon aktiviert, einmal aus- und wieder einschalten.",
+                title: L10n.s("common.accessibility"),
+                detail: L10n.s("settings.ax.banner"),
                 icon: "accessibility",
                 granted: state.axGranted,
                 action: state.openAccessibility,
-                repairHint: "Nach einem Update wirkt der Schalter oft noch an, gilt aber für die alte Version. Flow in der Liste entfernen oder aus- und wieder einschalten, dann Flow neu starten."
+                repairHint: L10n.s("main.ax.repair")
             )
         }
         .padding(18)
@@ -217,11 +219,11 @@ struct PermissionRow: View {
                 }
                 Spacer()
                 if granted {
-                    Label("Erlaubt", systemImage: "checkmark.circle.fill")
+                    Label(L10n.s("common.allowed"), systemImage: "checkmark.circle.fill")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.green)
                 } else {
-                    Button("Erlauben", action: action)
+                    Button(L10n.s("common.allow"), action: action)
                         .buttonStyle(PrimaryButtonStyle())
                 }
             }

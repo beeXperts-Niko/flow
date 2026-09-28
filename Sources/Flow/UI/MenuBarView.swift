@@ -21,7 +21,7 @@ struct MenuBarView: View {
 
             VStack(spacing: 10) {
                 HStack(spacing: 8) {
-                    Text("Automatische Korrektur")
+                    Text(L10n.s("menu.correction"))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -31,10 +31,28 @@ struct MenuBarView: View {
                         .controlSize(.small)
                         .disabled(!state.engineReady)
                 }
-                .help(state.polishAvailable ? "" : "API-Schlüssel fehlt – in den Einstellungen eintragen")
+                .help(state.polishAvailable ? "" : (
+                    state.config.usesCustomCorrectionAPI
+                        ? L10n.s("menu.correctionUnavailable")
+                        : L10n.s("menu.correctionNeedsKey")
+                ))
+                HStack(spacing: 8) {
+                    Text(L10n.s("menu.mute"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("", selection: $state.config.othersAudio) {
+                        Text(L10n.s("audio.off")).tag(OthersAudio.off.rawValue)
+                        Text(L10n.s("audio.quiet")).tag(OthersAudio.quiet.rawValue)
+                        Text(L10n.s("audio.mute")).tag(OthersAudio.mute.rawValue)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                }
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Stil")
+                        Text(L10n.s("menu.style"))
                             .font(.system(size: 12, weight: .medium))
                         if let app = state.frontApp {
                             Text(app.name)
@@ -110,9 +128,9 @@ struct MenuBarView: View {
 
     private var shortStatus: String {
         switch state.engineState {
-        case .ready: return "Bereit"
-        case .loading: return "Lädt"
-        case .error: return "Fehler"
+        case .ready: return L10n.s("status.ready")
+        case .loading: return L10n.s("status.loading")
+        case .error: return L10n.s("status.error")
         }
     }
 
@@ -128,9 +146,9 @@ struct MenuBarView: View {
                         .font(.system(size: 14, weight: .semibold))
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(listening ? "Aufnahme beenden" : "Frei sprechen")
+                    Text(listening ? L10n.s("menu.stop") : L10n.s("menu.speakFree"))
                         .font(.system(size: 13.5, weight: .semibold))
-                    Text(listening ? Fmt.clock(state.elapsed) : "oder \(state.config.resolvedHotkey.symbol) halten")
+                    Text(listening ? Fmt.clock(state.elapsed) : L10n.s("menu.orHold", state.config.resolvedHotkey.symbol))
                         .font(.system(size: 11).monospacedDigit())
                         .opacity(0.8)
                 }
@@ -162,7 +180,7 @@ struct MenuBarView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.shield.fill").foregroundStyle(.orange)
-                Text("Berechtigungen fehlen – jetzt einrichten")
+                Text(L10n.s("menu.permissions"))
                     .font(.system(size: 12, weight: .medium))
                 Spacer()
                 Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
@@ -181,7 +199,7 @@ struct MenuBarView: View {
                 Image(systemName: "text.bubble")
                     .font(.system(size: 20))
                     .foregroundStyle(.tertiary)
-                Text("Deine Diktate erscheinen hier.")
+                Text(L10n.s("menu.empty"))
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -189,7 +207,7 @@ struct MenuBarView: View {
             .padding(.vertical, 18)
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                Text("ZULETZT · KLICKEN ZUM KOPIEREN")
+                Text(L10n.s("menu.recent"))
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 12)
@@ -206,7 +224,7 @@ struct MenuBarView: View {
             Button {
                 state.openMain(.home)
             } label: {
-                Label("Flow öffnen", systemImage: "macwindow")
+                Label(L10n.s("menu.open"), systemImage: "macwindow")
                     .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(SoftButtonStyle())
@@ -217,14 +235,14 @@ struct MenuBarView: View {
                 Image(systemName: "gearshape")
             }
             .buttonStyle(IconButtonStyle())
-            .help("Einstellungen")
+            .help(L10n.s("menu.settings"))
             Button {
                 NSApp.terminate(nil)
             } label: {
                 Image(systemName: "power")
             }
             .buttonStyle(IconButtonStyle())
-            .help("Flow beenden")
+            .help(L10n.s("menu.quit"))
         }
     }
 }

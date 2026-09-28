@@ -4,9 +4,7 @@ struct HomeView: View {
     @EnvironmentObject var state: AppState
 
     var body: some View {
-        Page(title: greeting, subtitle: state.config.correctsWithOpenAI
-             ? "Sprich einfach. Whisper bleibt auf diesem Mac, die Korrektur läuft über deinen OpenAI-Schlüssel."
-             : "Sprich einfach. Flow schreibt – privat, mit Whisper und Qwen auf diesem Mac.") {
+        Page(title: greeting, subtitle: homeSubtitle) {
             if !state.hasPermissions {
                 PermissionBanner()
             }
@@ -15,31 +13,36 @@ struct HomeView: View {
             }
             HeroCard()
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 4), spacing: 14) {
-                StatCard(icon: "text.word.spacing", tint: Theme.violet, title: "Wörter diktiert", value: Fmt.number(state.totalWords))
-                StatCard(icon: "hourglass", tint: Theme.pink, title: "Zeit gespart", value: Fmt.minutes(state.minutesSaved))
-                StatCard(icon: "speedometer", tint: Theme.indigo, title: "Tempo", value: state.speakingWPM > 0 ? "\(state.speakingWPM) WPM" : "–")
-                StatCard(icon: "calendar", tint: .orange, title: "Diktate heute", value: "\(state.todayCount)")
+                StatCard(icon: "text.word.spacing", tint: Theme.violet, title: L10n.s("home.words"), value: Fmt.number(state.totalWords))
+                StatCard(icon: "hourglass", tint: Theme.pink, title: L10n.s("home.timeSaved"), value: Fmt.minutes(state.minutesSaved))
+                StatCard(icon: "speedometer", tint: Theme.indigo, title: L10n.s("home.pace"), value: state.speakingWPM > 0 ? "\(state.speakingWPM) WPM" : "–")
+                StatCard(icon: "calendar", tint: .orange, title: L10n.s("home.today"), value: "\(state.todayCount)")
             }
             recentCard
         }
     }
 
+    private var homeSubtitle: String {
+        if state.config.usesCustomCorrectionAPI { return L10n.s("home.subtitle.custom") }
+        return state.config.correctsWithOpenAI ? L10n.s("home.subtitle.on") : L10n.s("home.subtitle.off")
+    }
+
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
-        let salutation = hour < 11 ? "Guten Morgen" : (hour < 18 ? "Hallo" : "Guten Abend")
+        let salutation = hour < 11 ? L10n.s("home.morning") : (hour < 18 ? L10n.s("home.hello") : L10n.s("home.evening"))
         if SnapshotMode.isActive { return salutation }
         let first = NSFullUserName().split(separator: " ").first.map(String.init) ?? ""
-        return first.isEmpty ? salutation : "\(salutation), \(first)"
+        return first.isEmpty ? salutation : L10n.s("home.greetingNamed", salutation, first)
     }
 
     private var recentCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Zuletzt")
+                Text(L10n.s("home.recent"))
                     .font(.system(size: 15, weight: .semibold))
                 Spacer()
                 if !state.history.isEmpty {
-                    Button("Alle anzeigen") { state.section = .history }
+                    Button(L10n.s("home.showAll")) { state.section = .history }
                         .buttonStyle(SoftButtonStyle())
                 }
             }
@@ -48,8 +51,8 @@ struct HomeView: View {
             if state.history.isEmpty {
                 EmptyHint(
                     icon: "waveform.badge.mic",
-                    title: "Noch keine Diktate",
-                    text: "Klick in ein Textfeld, halte \(state.config.resolvedHotkey.title) und sprich los."
+                    title: L10n.s("home.emptyTitle"),
+                    text: L10n.s("home.emptyBody", state.config.resolvedHotkey.title)
                 )
             } else {
                 ForEach(state.history.prefix(5)) { entry in
@@ -68,20 +71,20 @@ private struct HeroCard: View {
         let listening = state.phase == .listening
         HStack(spacing: 28) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(listening ? "FLOW HÖRT ZU" : "DIKTIEREN")
+                Text(listening ? L10n.s("home.listening") : L10n.s("home.dictate"))
                     .font(.system(size: 11, weight: .bold))
                     .tracking(1.2)
                     .foregroundStyle(.white.opacity(0.7))
                 HStack(spacing: 10) {
-                    Text("Halte")
+                    Text(L10n.s("home.hold"))
                     KeyCap(label: state.config.resolvedHotkey.symbol, onDark: true)
-                    Text("und sprich.")
+                    Text(L10n.s("home.andSpeak"))
                 }
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 VStack(alignment: .leading, spacing: 6) {
-                    tip("hand.tap", "Doppeltipp für freies Sprechen")
-                    tip("escape", "Esc bricht ab")
-                    tip("wand.and.stars", "Text markieren und sagen, was sich ändern soll")
+                    tip("hand.tap", L10n.s("home.tipDouble"))
+                    tip("escape", L10n.s("home.tipEsc"))
+                    tip("wand.and.stars", L10n.s("home.tipRewrite"))
                 }
             }
             Spacer(minLength: 0)
@@ -108,7 +111,7 @@ private struct HeroCard: View {
             }
             .buttonStyle(.plain)
             .disabled(!state.engineReady && !listening)
-            .help(listening ? "Aufnahme beenden" : "Frei sprechen starten")
+            .help(listening ? L10n.s("home.helpStop") : L10n.s("home.helpStart"))
         }
         .foregroundStyle(.white)
         .padding(28)

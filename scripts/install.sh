@@ -62,7 +62,7 @@ chmod +x "$STAGE/Contents/MacOS/Flow"
 IDENTITY=""
 if IDENTITY="$("$ROOT/scripts/ensure_signing_identity.sh")"; then
   echo "Signiere mit stabiler Identität: $IDENTITY"
-  codesign --force --deep --sign "$IDENTITY" --identifier "de.dietergeschaeft.Flow" "$STAGE"
+  codesign --force --deep --sign "$IDENTITY" --identifier "de.sinthex.flow" "$STAGE"
 else
   echo "FEHLER: Stabile Codesign-Identität fehlt – ohne sie gehen Mikro/Bedienungshilfen nach jedem Update verloren." >&2
   echo "Log: $SUPPORT/signing-setup.log" >&2
@@ -76,5 +76,5 @@ if pgrep -f "/Applications/Flow.app/Contents/MacOS/Flow" >/dev/null 2>&1; then
 fi
 rm -rf "$APP"
 cp -R "$STAGE" "$APP"
-codesign --force --deep --sign "$IDENTITY" --identifier "de.dietergeschaeft.Flow" "$APP"
+codesign --force --deep --sign "$IDENTITY" --identifier "de.sinthex.flow" "$APP"
 echo "Installiert: $APP (Signatur bleibt über Updates stabil)"

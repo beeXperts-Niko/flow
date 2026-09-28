@@ -1,0 +1,27 @@
+# Force .pkg downloads instead of inline display
+<FilesMatch "\.pkg$">
+  ForceType application/octet-stream
+  Header set Content-Disposition "attachment"
+</FilesMatch>
+
+# llms.txt as plain text for agents
+<Files "llms.txt">
+  ForceType text/plain; charset=UTF-8
+</Files>
+
+<FilesMatch "\.(md|txt)$">
+  Header set X-Content-Type-Options "nosniff"
+</FilesMatch>
+
+# Discovery links for HTML under /flow/ (llms.txt v2)
+<IfModule mod_headers.c>
+  <Files "index.html">
+    Header set Link "</flow/llms.txt>; rel=\"describedby\", </flow/index.md>; rel=\"alternate\"; type=\"text/markdown\""
+  </Files>
+  <Files "impressum.html">
+    Header set Link "</flow/llms.txt>; rel=\"describedby\", </flow/impressum.md>; rel=\"alternate\"; type=\"text/markdown\""
+  </Files>
+  <Files "changelog.html">
+    Header set Link "</flow/llms.txt>; rel=\"describedby\", </flow/changelog.md>; rel=\"alternate\"; type=\"text/markdown\""
+  </Files>
+</IfModule>

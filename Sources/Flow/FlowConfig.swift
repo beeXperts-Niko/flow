@@ -6,6 +6,10 @@ struct FlowConfig: Codable, Equatable {
     /// local = Qwen auf diesem Mac, openai = Chat-API mit eigenem Schlüssel
     var polishProvider: String
     var openAIModel: String
+    /// Leer = https://api.openai.com/v1. Sonst eine OpenAI-kompatible Basisadresse.
+    var correctionBaseURL: String = ""
+    /// chatgpt = OpenAI. custom = eigene Adresse und eigenes Modell.
+    var correctionKind: String = "chatgpt"
     /// true, sobald die alte Modell-Vorgabe einmal auf „auto“ umgestellt wurde
     var didChooseModel: Bool
     var appStyles: [AppStyleProfile]
@@ -21,6 +25,10 @@ struct FlowConfig: Codable, Equatable {
     var autoCorrect: Bool
     var hotkey: String
     var playSounds: Bool
+    /// Während der Aufnahme: off, quiet oder mute.
+    var othersAudio: String
+    /// Kurze Korrekturen am eingesetzten Text ins Wörterbuch übernehmen.
+    var learnEdits: Bool
     var launchAtLogin: Bool
     var onboarded: Bool
     var port: Int
@@ -50,6 +58,8 @@ struct FlowConfig: Codable, Equatable {
         autoCorrect: true,
         hotkey: Hotkey.function.rawValue,
         playSounds: true,
+        othersAudio: OthersAudio.mute.rawValue,
+        learnEdits: true,
         launchAtLogin: false,
         onboarded: false,
         port: 17321,
@@ -73,6 +83,8 @@ struct FlowConfig: Codable, Equatable {
         autoCorrect: Bool,
         hotkey: String,
         playSounds: Bool,
+        othersAudio: String,
+        learnEdits: Bool,
         launchAtLogin: Bool,
         onboarded: Bool,
         port: Int,
@@ -94,6 +106,8 @@ struct FlowConfig: Codable, Equatable {
         self.autoCorrect = autoCorrect
         self.hotkey = hotkey
         self.playSounds = playSounds
+        self.othersAudio = othersAudio
+        self.learnEdits = learnEdits
         self.launchAtLogin = launchAtLogin
         self.onboarded = onboarded
         self.port = port
@@ -108,6 +122,14 @@ struct FlowConfig: Codable, Equatable {
         whisperModel = try c.decodeIfPresent(String.self, forKey: .whisperModel) ?? d.whisperModel
         polishProvider = try c.decodeIfPresent(String.self, forKey: .polishProvider) ?? d.polishProvider
         openAIModel = try c.decodeIfPresent(String.self, forKey: .openAIModel) ?? d.openAIModel
+        correctionBaseURL = try c.decodeIfPresent(String.self, forKey: .correctionBaseURL) ?? ""
+        if let kind = try c.decodeIfPresent(String.self, forKey: .correctionKind),
+           kind == "chatgpt" || kind == "custom" {
+            correctionKind = kind
+        } else {
+            let host = URL(string: correctionBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))?.host?.lowercased()
+            correctionKind = (host != nil && host != "api.openai.com") ? "custom" : "chatgpt"
+        }
         didChooseModel = try c.decodeIfPresent(Bool.self, forKey: .didChooseModel) ?? false
         appStyles = try c.decodeIfPresent([AppStyleProfile].self, forKey: .appStyles) ?? []
         language = try c.decodeIfPresent(String.self, forKey: .language) ?? d.language
@@ -119,6 +141,14 @@ struct FlowConfig: Codable, Equatable {
         autoCorrect = try c.decodeIfPresent(Bool.self, forKey: .autoCorrect) ?? d.autoCorrect
         hotkey = try c.decodeIfPresent(String.self, forKey: .hotkey) ?? d.hotkey
         playSounds = try c.decodeIfPresent(Bool.self, forKey: .playSounds) ?? d.playSounds
+        if let stored = try c.decodeIfPresent(String.self, forKey: .othersAudio),
+           OthersAudio(rawValue: stored) != nil {
+            othersAudio = stored
+        } else {
+            let muted = try c.decodeIfPresent(Bool.self, forKey: .muteOthers) ?? true
+            othersAudio = (muted ? OthersAudio.mute : OthersAudio.off).rawValue
+        }
+        learnEdits = try c.decodeIfPresent(Bool.self, forKey: .learnEdits) ?? true
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
         onboarded = try c.decodeIfPresent(Bool.self, forKey: .onboarded) ?? d.onboarded
         port = try c.decodeIfPresent(Int.self, forKey: .port) ?? d.port
@@ -132,6 +162,8 @@ struct FlowConfig: Codable, Equatable {
         try c.encode(whisperModel, forKey: .whisperModel)
         try c.encode(polishProvider, forKey: .polishProvider)
         try c.encode(openAIModel, forKey: .openAIModel)
+        try c.encode(correctionBaseURL, forKey: .correctionBaseURL)
+        try c.encode(correctionKind, forKey: .correctionKind)
         try c.encode(didChooseModel, forKey: .didChooseModel)
         try c.encode(appStyles, forKey: .appStyles)
         try c.encode(language, forKey: .language)
@@ -143,6 +175,9 @@ struct FlowConfig: Codable, Equatable {
         try c.encode(autoCorrect, forKey: .autoCorrect)
         try c.encode(hotkey, forKey: .hotkey)
         try c.encode(playSounds, forKey: .playSounds)
+        try c.encode(othersAudio, forKey: .othersAudio)
+        try c.encode(othersAudio != OthersAudio.off.rawValue, forKey: .muteOthers)
+        try c.encode(learnEdits, forKey: .learnEdits)
         try c.encode(launchAtLogin, forKey: .launchAtLogin)
         try c.encode(onboarded, forKey: .onboarded)
         try c.encode(port, forKey: .port)
@@ -151,8 +186,8 @@ struct FlowConfig: Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case modelPath, whisperModel, polishProvider, openAIModel, didChooseModel, appStyles, language, nativeLanguage, style, instructions, dictionary
-        case commandMode, autoCorrect, hotkey, playSounds, launchAtLogin, onboarded, port, widgetX, widgetY
+        case modelPath, whisperModel, polishProvider, openAIModel, correctionBaseURL, correctionKind, didChooseModel, appStyles, language, nativeLanguage, style, instructions, dictionary
+        case commandMode, autoCorrect, hotkey, playSounds, muteOthers, othersAudio, learnEdits, launchAtLogin, onboarded, port, widgetX, widgetY
     }
 
     static var snapshotDemo: FlowConfig {
@@ -211,7 +246,28 @@ struct FlowConfig: Codable, Equatable {
         Hotkey(rawValue: hotkey) ?? .function
     }
 
+    var othersAudioMode: OthersAudio {
+        OthersAudio(rawValue: othersAudio) ?? .mute
+    }
+
     var correctsWithOpenAI: Bool { polishProvider == "openai" }
+
+    static let defaultCorrectionBaseURL = "https://api.openai.com/v1"
+
+    var resolvedCorrectionBaseURL: String {
+        if correctionKind != "custom" { return Self.defaultCorrectionBaseURL }
+        return correctionBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Eigenes Modell über eine OpenAI-kompatible Adresse. Der Schlüssel ist dann optional.
+    var usesCustomCorrectionAPI: Bool { correctionKind == "custom" }
+
+    func correctionConfigured(hasKey: Bool) -> Bool {
+        if usesCustomCorrectionAPI {
+            return correctsWithOpenAI && !resolvedCorrectionBaseURL.isEmpty
+        }
+        return correctsWithOpenAI && hasKey
+    }
 }
 
 enum SupportPaths {
@@ -331,18 +387,18 @@ struct DictionaryItem: Identifiable, Equatable {
 struct TranslateLanguage: Identifiable, Hashable {
     let id: String
     let flag: String
-    let name: String
+    var name: String { L10n.s("lang.\(id)") }
 
     static let all: [TranslateLanguage] = [
-        .init(id: "de", flag: "🇩🇪", name: "Deutsch"),
-        .init(id: "en", flag: "🇬🇧", name: "Englisch"),
-        .init(id: "fr", flag: "🇫🇷", name: "Französisch"),
-        .init(id: "es", flag: "🇪🇸", name: "Spanisch"),
-        .init(id: "it", flag: "🇮🇹", name: "Italienisch"),
-        .init(id: "pt", flag: "🇵🇹", name: "Portugiesisch"),
-        .init(id: "nl", flag: "🇳🇱", name: "Niederländisch"),
-        .init(id: "pl", flag: "🇵🇱", name: "Polnisch"),
-        .init(id: "tr", flag: "🇹🇷", name: "Türkisch")
+        .init(id: "de", flag: "🇩🇪"),
+        .init(id: "en", flag: "🇬🇧"),
+        .init(id: "fr", flag: "🇫🇷"),
+        .init(id: "es", flag: "🇪🇸"),
+        .init(id: "it", flag: "🇮🇹"),
+        .init(id: "pt", flag: "🇵🇹"),
+        .init(id: "nl", flag: "🇳🇱"),
+        .init(id: "pl", flag: "🇵🇱"),
+        .init(id: "tr", flag: "🇹🇷")
     ]
 
     static func named(_ id: String) -> TranslateLanguage {

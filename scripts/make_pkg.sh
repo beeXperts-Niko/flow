@@ -26,7 +26,7 @@ rm -f "$PKG" "$ZIP"
 pkgbuild \
   --root "$WORK/root" \
   --component-plist "$WORK/components.plist" \
-  --identifier "de.dietergeschaeft.Flow" \
+  --identifier "de.sinthex.flow" \
   --version "$VERSION" \
   --install-location "/" \
   "$PKG"

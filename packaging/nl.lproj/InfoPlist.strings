@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "Flow gebruikt de microfoon om het dictaat lokaal op deze Mac te herkennen.";
+"NSAppleEventsUsageDescription" = "Flow voegt de gedicteerde tekst in de actieve app in.";

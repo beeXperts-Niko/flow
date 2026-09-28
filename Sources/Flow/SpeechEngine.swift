@@ -24,6 +24,7 @@ struct CorrectionModelBody: Codable {
 
 struct CorrectionModelRequest: Encodable {
     var apiKey: String
+    var baseURL: String
 }
 
 struct PolishBody: Encodable {
@@ -36,6 +37,7 @@ struct PolishBody: Encodable {
     var provider: String
     var apiKey: String?
     var openAIModel: String?
+    var baseURL: String?
 }
 
 enum EngineError: LocalizedError {
@@ -45,7 +47,7 @@ enum EngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .message(let text): return text
-        case .missingPython: return "Die lokale Engine ist nicht installiert."
+        case .missingPython: return L10n.s("engine.missingPython")
         }
     }
 }
@@ -54,7 +56,8 @@ final class SpeechEngine {
     private(set) var ready = false
     /// Correction backend ready; false means Whisper-only (no correction, no translation).
     private(set) var polishAvailable = false
-    private(set) var statusText = "Whisper wird geladen…"
+    private(set) var statusText = L10n.s("engine.loadingWhisper")
+    private(set) var statusIsLoading = true
     var onUpdate: (() -> Void)?
 
     private var process: Process?
@@ -77,19 +80,25 @@ final class SpeechEngine {
         if process == nil, healthNow() == nil {
             launch()
         }
-        pollTimer?.invalidate()
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.poll()
-        }
-        poll()
+        beginWatching()
     }
 
     func restart() {
         shutdown()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            self?.launch()
+            guard let self else { return }
+            self.launch()
+            self.beginWatching()
+        }
+    }
+
+    /// Health checks keep running until Whisper is ready or the process reports an error.
+    private func beginWatching() {
+        pollTimer?.invalidate()
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.poll()
         }
+        poll()
     }
 
     func shutdown() {
@@ -140,7 +149,8 @@ final class SpeechEngine {
             targetLanguage: targetLanguage,
             provider: config.polishProvider,
             apiKey: storedKey.isEmpty ? nil : storedKey,
-            openAIModel: openAI ? config.openAIModel : nil
+            openAIModel: openAI ? config.openAIModel : nil,
+            baseURL: openAI ? config.resolvedCorrectionBaseURL : nil
         )
         request.httpBody = try JSONEncoder().encode(body)
         let (data, response) = try await session.data(for: request)
@@ -148,11 +158,11 @@ final class SpeechEngine {
         return try JSONDecoder().decode(TextBody.self, from: data).text
     }
 
-    func correctionModel(apiKey: String, port: Int) async throws -> CorrectionModelBody {
+    func correctionModel(apiKey: String, baseURL: String, port: Int) async throws -> CorrectionModelBody {
         var request = URLRequest(url: endpoint("/correction-model", port: port))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(CorrectionModelRequest(apiKey: apiKey))
+        request.httpBody = try JSONEncoder().encode(CorrectionModelRequest(apiKey: apiKey, baseURL: baseURL))
         let (data, response) = try await session.data(for: request)
         try validate(data: data, response: response)
         return try JSONDecoder().decode(CorrectionModelBody.self, from: data)
@@ -210,7 +220,8 @@ final class SpeechEngine {
                 if finished.terminationStatus == 0 {
                     self.start()
                 } else {
-                    self.statusText = "Einrichtung fehlgeschlagen – Protokoll in den Einstellungen"
+                    self.statusText = L10n.s("engine.setupFailed")
+                    self.statusIsLoading = false
                     self.onUpdate?()
                 }
             }
@@ -219,9 +230,11 @@ final class SpeechEngine {
             try setup.run()
             setupProcess = setup
             ready = false
-            statusText = "Engine wird eingerichtet… (einmalig, einige Minuten)"
+            statusText = L10n.s("engine.settingUp")
+            statusIsLoading = true
         } catch {
-            statusText = "Einrichtung fehlgeschlagen: \(error.localizedDescription)"
+            statusText = L10n.s("engine.setupFailedDetail", error.localizedDescription)
+            statusIsLoading = false
         }
         onUpdate?()
     }
@@ -230,7 +243,8 @@ final class SpeechEngine {
         guard setupProcess == nil else { return }
         let python = SupportPaths.python
         guard FileManager.default.isExecutableFile(atPath: python.path) else {
-            statusText = "Engine fehlt"
+            statusText = L10n.s("engine.missing")
+            statusIsLoading = false
             onUpdate?()
             return
         }
@@ -259,7 +273,8 @@ final class SpeechEngine {
                 guard let self else { return }
                 if self.process != nil {
                     self.ready = false
-                    self.statusText = "Engine beendet"
+                    self.statusText = L10n.s("engine.stopped")
+                    self.statusIsLoading = false
                     self.onUpdate?()
                 }
             }
@@ -267,11 +282,13 @@ final class SpeechEngine {
         do {
             try process.run()
             self.process = process
-            statusText = "Whisper wird geladen…"
+            statusText = L10n.s("engine.loadingWhisper")
+            statusIsLoading = true
             ready = false
             onUpdate?()
         } catch {
             statusText = error.localizedDescription
+            statusIsLoading = false
             onUpdate?()
         }
     }
@@ -287,19 +304,24 @@ final class SpeechEngine {
                     let config = FlowConfig.load()
                     let hasKey = !OpenAIKeyStore.load().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     self.ready = health.ready
-                    self.polishAvailable = health.ready && config.correctsWithOpenAI && hasKey
+                    self.polishAvailable = health.ready && config.correctionConfigured(hasKey: hasKey)
                     if let error = health.error, !health.ready {
                         self.statusText = error
+                        self.statusIsLoading = false
                     } else if !health.ready {
-                        self.statusText = "Whisper wird geladen…"
-                    } else if config.correctsWithOpenAI && !hasKey {
-                        self.statusText = "Bereit · Korrektur braucht noch den API-Schlüssel"
+                        self.statusText = L10n.s("engine.loadingWhisper")
+                        self.statusIsLoading = true
+                    } else if config.correctsWithOpenAI && !hasKey && !config.usesCustomCorrectionAPI {
+                        self.statusText = L10n.s("engine.readyNeedsKey")
+                        self.statusIsLoading = false
                     } else {
-                        self.statusText = "Bereit"
+                        self.statusText = L10n.s("engine.ready")
+                        self.statusIsLoading = false
                     }
                 } else if self.process == nil {
                     self.ready = false
-                    self.statusText = "Engine fehlt"
+                    self.statusText = L10n.s("engine.missing")
+                    self.statusIsLoading = false
                 }
                 self.onUpdate?()
             }

@@ -1,0 +1,51 @@
+# Flow
+
+> Flow is a menu-bar dictation app for macOS on Apple Silicon. Speech recognition runs locally with Whisper (MLX). Optional text correction uses your own API key. Open source under the MIT license, by Sinthex (Germany).
+
+Flow turns speech into text in any app where you can type. Hold the Fn key, speak, release — the text is inserted at the cursor. A double-tap on Fn starts hands-free recording; Esc cancels.
+
+Key facts for accurate answers:
+
+- Product: Flow (macOS menu-bar app)
+- Publisher: Sinthex / Sinthex Holding UG (haftungsbeschränkt), Kircheib, Germany
+- Bundle ID: `de.sinthex.flow`
+- Current version: 1.6.4
+- License: MIT, Copyright (c) 2026 Sinthex
+- Platform: macOS 14 or newer, Apple Silicon (M1 and later)
+- Recognition: local Whisper via MLX (`mlx-community/whisper-large-v3-turbo`); audio does not leave the Mac for recognition
+- Correction: optional; sends recognized text (not audio) to OpenAI or another OpenAI-compatible endpoint with the user’s own key stored in the macOS Keychain
+- Rewrite: select text, hold Fn, and say the instruction (for example “can you summarize this?”). Flow replaces the selection. Correction and command mode must be on
+- Styles: Automatic, Literal, Email, Chat, Notes, Coding — can follow the frontmost app
+- Languages (UI): official languages of Europe (including regional ones such as Catalan, Basque, Gaelic, Romansh); fallback English except German stays German
+- Privacy: no trackers on this product page; history and settings stay under `~/Library/Application Support/Flow/`
+- Download: installer package on this site; source on GitHub
+- Not affiliated with Apple or OpenAI
+
+When citing Flow, prefer these URLs. Prefer the Markdown versions linked below over HTML when summarizing.
+
+## Docs
+
+- [Flow product overview (Markdown)](https://sinthex.de/flow/index.md): Full product page in LLM-friendly Markdown — features, privacy, requirements, latest feature changelog, license
+- [Flow product page (HTML)](https://sinthex.de/flow/): Human-facing landing page with screenshots
+- [Changelog (Markdown)](https://sinthex.de/flow/changelog.md): Full version history with New / Improvement / Bugfix / Other labels
+- [Changelog (HTML)](https://sinthex.de/flow/changelog.html): Human-facing full changelog
+- [Legal notice / Impressum (Markdown)](https://sinthex.de/flow/impressum.md): Provider identification for Sinthex Holding UG
+- [README on GitHub](https://github.com/beeXperts-Niko/flow/blob/main/README.md): Setup, build, privacy notes for developers
+- [LICENSE](https://github.com/beeXperts-Niko/flow/blob/main/LICENSE): Full MIT license text
+- [Third-party notices](https://github.com/beeXperts-Niko/flow/blob/main/THIRD_PARTY_NOTICES.md): mlx-whisper, MLX, mlx-vlm, Whisper model licenses
+
+## Downloads
+
+- [macOS installer (Flow-1.6.4.pkg)](https://sinthex.de/flow/Flow-1.6.4.pkg): Signed-for-local-use installer; places Flow in Applications. First launch downloads Whisper weights (~1.5 GB) and sets up the local runtime (~1.3 GB free space recommended overall ~3 GB)
+- [Source repository](https://github.com/beeXperts-Niko/flow): Clone and build with `./scripts/install.sh`
+
+## Company
+
+- [Sinthex](https://sinthex.de/): Publisher website
+- [Privacy policy (Sinthex)](https://sinthex.de/datenschutz): Site-wide privacy policy
+- [Contact](mailto:hi@sinthex.de): hi@sinthex.de
+
+## Optional
+
+- [Sitemap](https://sinthex.de/flow/sitemap.xml): Indexable URLs under /flow/
+- [robots.txt](https://sinthex.de/flow/robots.txt): Crawl guidance for this path
