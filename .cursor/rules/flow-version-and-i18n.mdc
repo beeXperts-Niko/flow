@@ -8,17 +8,22 @@ alwaysApply: true
 Product version is `CFBundleShortVersionString` in `packaging/Info.plist`.
 `CFBundleVersion` is an integer. Increment it by 1 on every version bump.
 
+The product page lives in the private repo `beeXperts-Niko/flow-site`, checked out beside this repo as `../flow-site`.
+
 On every user-visible change, before finishing:
 - bump the version
-- add a changelog entry on the product page, newest first: German in `site/index.html`, English keys in `site/i18n.js`
+- add a changelog entry on the product page, newest first: German in `../flow-site/index.html`, English keys in `../flow-site/i18n.js`
 - point every download link at `Flow-<version>.pkg` (header, hero, download, impressum)
-- bump the `i18n.js?v=` query when `site/i18n.js` changes
+- write `../flow-site/latest.json` with `version` and the absolute `pkg` URL (the app reads this for updates)
+- bump the `i18n.js?v=` query when `../flow-site/i18n.js` changes
 
 Patch `1.1.x`: fix, copy, layout. No new capability.
 Minor `1.x.0`: a new capability. Reset patch to 0.
 Major `x.0.0`: only when the user explicitly asks. Reset minor and patch to 0.
 
 Do not bump `engine/pyproject.toml` for a UI-only change. A changed engine file retriggers the local Python setup.
+
+Going live is the command `deployVersion` (`.cursor/commands/deployVersion.md`). A normal change updates the repo only. Do not upload the site or the installer yourself.
 
 # UI language
 

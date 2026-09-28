@@ -1,6 +1,5 @@
 .build/
 dist/
-site/*.pkg
 *.wav
 .DS_Store
 __pycache__/
