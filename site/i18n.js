@@ -154,6 +154,7 @@
     "log.kind.improve": "Improvement",
     "log.kind.fix": "Bugfix",
     "log.kind.other": "Other",
+    "log.legend": "Labels",
     "log.legend.new": "New capability",
     "log.legend.improve": "Existing behavior",
     "log.legend.fix": "Something fixed",
